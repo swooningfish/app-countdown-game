@@ -154,8 +154,8 @@ fun NumbersScreen(game: NumbersGame, settings: Settings, session: Session, modif
                 game.clockStart?.let { start ->
                     CountdownClock(start = start, seconds = game.clockLimit, onTimeUp = { finish(session) }, modifier = Modifier.align(Alignment.CenterHorizontally))
                 }
-                WorkingField(game, onDone = { finish(session) })
-                OperatorKeys(game)
+                WorkingField(game.working, game.numbers, onChange = { game.working = it }, onDone = { finish(session) })
+                OperatorKeys(onKey = game::append, onBackspace = game::backspace)
                 Button(onClick = { finish(session) }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Filled.Check, null, Modifier.size(ButtonDefaults.IconSize))
                     Spacer(Modifier.width(ButtonDefaults.IconSpacing))
@@ -245,7 +245,7 @@ private fun NumberBoardView(board: NumberBoard, isPicked: (BoardCard) -> Boolean
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun SelectionChips(onSelect: (NumberSelection) -> Unit) {
+fun SelectionChips(onSelect: (NumberSelection) -> Unit) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         NumberSelection.entries.forEach { selection ->
             AssistChip(onClick = { onSelect(selection) }, label = { Text(selection.label) })
@@ -254,11 +254,11 @@ private fun SelectionChips(onSelect: (NumberSelection) -> Unit) {
 }
 
 @Composable
-private fun WorkingField(game: NumbersGame, onDone: () -> Unit) {
-    val evaluation = if (game.working.isBlank()) null else ExpressionEvaluator.evaluate(game.working, game.numbers)
+fun WorkingField(working: String, numbers: List<Int>, onChange: (String) -> Unit, onDone: () -> Unit) {
+    val evaluation = if (working.isBlank()) null else ExpressionEvaluator.evaluate(working, numbers)
     OutlinedTextField(
-        value = game.working,
-        onValueChange = { game.working = it },
+        value = working,
+        onValueChange = onChange,
         label = { Text("e.g. (75 + 5) × 8") },
         singleLine = true,
         textStyle = MaterialTheme.typography.titleMedium.copy(fontFamily = FontFamily.Monospace),
@@ -273,8 +273,8 @@ private fun WorkingField(game: NumbersGame, onDone: () -> Unit) {
             )
         },
         trailingIcon = {
-            if (game.working.isNotEmpty()) {
-                IconButton(onClick = { game.working = "" }) { Icon(Icons.Filled.Close, contentDescription = "Clear working") }
+            if (working.isNotEmpty()) {
+                IconButton(onClick = { onChange("") }) { Icon(Icons.Filled.Close, contentDescription = "Clear working") }
             }
         },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, autoCorrectEnabled = false, imeAction = ImeAction.Done),
@@ -284,14 +284,14 @@ private fun WorkingField(game: NumbersGame, onDone: () -> Unit) {
 }
 
 @Composable
-private fun OperatorKeys(game: NumbersGame) {
+fun OperatorKeys(onKey: (String) -> Unit, onBackspace: () -> Unit) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         listOf("+", "−", "×", "÷", "(", ")").forEach { op ->
-            FilledTonalIconButton(onClick = { game.append(op) }, shape = CircleShape) {
+            FilledTonalIconButton(onClick = { onKey(op) }, shape = CircleShape) {
                 Text(op, style = MaterialTheme.typography.titleLarge)
             }
         }
-        IconButton(onClick = game::backspace) {
+        IconButton(onClick = onBackspace) {
             Icon(Icons.AutoMirrored.Filled.Backspace, contentDescription = "Backspace")
         }
     }
@@ -317,7 +317,7 @@ private fun PlayerNumbersResult(game: NumbersGame) {
 }
 
 @Composable
-private fun SolutionCard(solution: NumbersSolution?) {
+fun SolutionCard(solution: NumbersSolution?) {
     if (solution == null) {
         SectionCard(title = "Solving…") {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {

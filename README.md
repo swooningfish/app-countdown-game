@@ -21,6 +21,11 @@ A Kotlin Multiplatform app for **Android and iOS**, built with Compose Multiplat
   <img src="docs/screenshots/conundrum-dark.png" width="250" alt="Conundrum round in dark mode">
   <img src="docs/screenshots/settings.png" width="250" alt="Settings: clock, letters rule, numbers difficulty, word list and app details">
 </p>
+<p align="center">
+  <img src="docs/screenshots/two-player-setup.png" width="250" alt="Two-player setup: your name, host or join over Bluetooth, and the running order">
+  <img src="docs/screenshots/two-player-playing.png" width="250" alt="Two-player letters round with both scores">
+  <img src="docs/screenshots/two-player-results.png" width="250" alt="Two-player results showing both words and points">
+</p>
 
 ## Features
 
@@ -63,6 +68,25 @@ A Kotlin Multiplatform app for **Android and iOS**, built with Compose Multiplat
 ### Conundrum
 - A nine-letter anagram with exactly one answer in the word list. Solve it before the clock runs out for 10 points.
 
+### Two players over Bluetooth
+Play a friend, each on your own phone. One phone hosts and the other joins over Bluetooth Low Energy, so an Android phone and an iPhone can play each other.
+
+- **Running order:** pick a suggested game, or change it before hosting. Add or remove letters and numbers rounds and move them up or down. The conundrum always comes last.
+
+  | Game | Rounds |
+  |---|---|
+  | Full game | 10 letters, 4 numbers and the conundrum (15 rounds) |
+  | Half game | 5 letters, 2 numbers and the conundrum |
+  | Quick game | 2 letters, 1 numbers and the conundrum |
+
+- **Taking turns:** players take turns choosing the vowels and consonants or the large and small numbers, starting with the host. Both play the same selection against the same clock.
+- **Scoring, as on the show:**
+  - Letters: the longer valid word scores. If both words are the same length, both score.
+  - Numbers: the answer closer to the target scores, as long as it's within 10. If both are equally close, both score.
+- **Conundrum:** either player can ask for one from the word list. If you're watching the show, you can **type in the conundrum** it used. The first right answer scores 10. A wrong answer means you can't try again.
+- The host's settings (clock, letters rule, target difficulty, nasty large numbers) apply to both players, and the host's word list judges the answers.
+- Your name is saved for next time.
+
 ### Settings
 - **Clock:** on or off, with a time limit of 15, 30 (the show's, and the default), 45, 60, 90 or 120 seconds.
 - **Letters:** the vowel/consonant rule.
@@ -103,9 +127,9 @@ Android application IDs and Kotlin packages can't contain hyphens, so those use 
 
 ```
 composeApp/src/
-  commonMain/kotlin/.../game/      Rules, solvers, scoring, word list parsing (pure Kotlin)
+  commonMain/kotlin/.../game/      Rules, solvers, scoring, word list parsing, two-player engine and protocol (pure Kotlin)
   commonMain/kotlin/.../ui/        Material 3 screens and components
-  commonMain/kotlin/.../platform/  expect declarations: storage, download, file picker, back handling
+  commonMain/kotlin/.../platform/  expect declarations: storage, download, file picker, back handling, Bluetooth
   commonMain/composeResources/files/words.txt   Built-in word list
   androidMain/  iosMain/  desktopMain/          Platform implementations and entry points
   commonTest/  desktopTest/                     Unit tests and the screenshot generator
@@ -189,16 +213,6 @@ Then:
 ```powershell
 python -I scripts/build_wordlist.py path/to/scowl.txt
 ```
-
-## Roadmap
-
-### Two-player game
-Play a full game against a friend, with scores kept for each player.
-
-- **Suggested running order:** the app proposes a default set of rounds, like a full show: letters and numbers rounds (10 letters and 4 numbers in the full format), finishing with a conundrum. You can change the order or the number of rounds before starting.
-- **Letters and numbers rounds:** players take turns choosing the vowels/consonants and the large/small numbers, as contestants do on the show. Both play the same selection against the same clock. The results show both answers side by side and award points as on the show (if both have equal words, both score).
-- **Conundrum at the end:** the app suggests one from the word list, or you can type in a known conundrum (for example, one from a real episode). The first player to buzz in with the right answer scores 10.
-- **Dual mode over Bluetooth:** each player uses their own phone. One device hosts the game and the other joins over Bluetooth. Letters, numbers, the clock, answers and scores stay in sync on both. Bluetooth Low Energy will be used so an Android phone and an iPhone can play each other.
 
 ## Credits
 

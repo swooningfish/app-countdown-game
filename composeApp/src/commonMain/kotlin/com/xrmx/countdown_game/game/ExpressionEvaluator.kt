@@ -116,3 +116,26 @@ object ExpressionEvaluator {
         }
     }
 }
+
+/** Editing helpers for numbers working typed with the tiles and operator keys. */
+object Working {
+    fun append(working: String, token: String): String = (working.trimEnd() + " " + token).trim()
+
+    /** Removes the last number or symbol. */
+    fun backspace(working: String): String {
+        val trimmed = working.trimEnd()
+        return if (trimmed.lastOrNull()?.isDigit() == true) {
+            trimmed.dropLastWhile { it.isDigit() }.trimEnd()
+        } else {
+            trimmed.dropLast(1).trimEnd()
+        }
+    }
+
+    /** Whether the number on tile [index] hasn't been used in [working] yet. */
+    fun isTileFree(working: String, numbers: List<Int>, index: Int): Boolean {
+        val n = numbers.getOrNull(index) ?: return false
+        val usedCount = ExpressionEvaluator.numbersIn(working).count { it == n }
+        val earlierSame = numbers.take(index).count { it == n }
+        return earlierSame >= usedCount
+    }
+}

@@ -299,7 +299,7 @@ private fun LettersResults(check: WordCheck?, solution: LettersSolution?) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun WordGroups(words: List<String>) {
+fun WordGroups(words: List<String>) {
     words.groupBy { it.length }.forEach { (length, group) ->
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(

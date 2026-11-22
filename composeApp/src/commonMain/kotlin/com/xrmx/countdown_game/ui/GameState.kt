@@ -9,6 +9,7 @@ import com.xrmx.countdown_game.game.ConundrumGenerator
 import com.xrmx.countdown_game.game.ExpressionEvaluator
 import com.xrmx.countdown_game.game.BoardCard
 import com.xrmx.countdown_game.game.LetterBag
+import com.xrmx.countdown_game.game.MatchRules
 import com.xrmx.countdown_game.game.NumberBoard
 import com.xrmx.countdown_game.game.NumberSelection
 import com.xrmx.countdown_game.game.TargetDifficulty
@@ -20,6 +21,7 @@ import com.xrmx.countdown_game.game.NumbersSolution
 import com.xrmx.countdown_game.game.Scoring
 import com.xrmx.countdown_game.game.WordCheck
 import com.xrmx.countdown_game.game.WordDictionary
+import com.xrmx.countdown_game.game.Working
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.time.TimeMark
@@ -34,6 +36,12 @@ class Settings {
     var targetDifficulty by mutableStateOf(TargetDifficulty.Random)
     var nastyLargeNumbers by mutableStateOf(false)
 
+    /** Shown to the other player in two-player games. */
+    var playerName by mutableStateOf("")
+
+    /** The rules a two-player game hosted from this phone uses. */
+    fun matchRules(): MatchRules = MatchRules(activeClockSeconds, enforceLetterRule, targetDifficulty, nastyLargeNumbers)
+
     /** Seconds for the next round's clock, or null when the clock is switched off. */
     val activeClockSeconds: Int? get() = if (clockEnabled) clockSeconds else null
 
@@ -44,6 +52,7 @@ class Settings {
         "enforceLetterRule=$enforceLetterRule",
         "targetDifficulty=${targetDifficulty.name}",
         "nastyLargeNumbers=$nastyLargeNumbers",
+        "playerName=${playerName.replace('\n', ' ')}",
     ).joinToString("\n")
 
     fun decode(text: String) {
@@ -55,10 +64,12 @@ class Settings {
         values["enforceLetterRule"]?.toBooleanStrictOrNull()?.let { enforceLetterRule = it }
         values["targetDifficulty"]?.let { name -> TargetDifficulty.entries.firstOrNull { it.name == name } }?.let { targetDifficulty = it }
         values["nastyLargeNumbers"]?.toBooleanStrictOrNull()?.let { nastyLargeNumbers = it }
+        values["playerName"]?.let { playerName = it.take(MAX_NAME) }
     }
 
     companion object {
         const val DEFAULT_CLOCK_SECONDS = 30
+        const val MAX_NAME = 20
         val CLOCK_OPTIONS = listOf(15, 30, 45, 60, 90, 120)
     }
 }
@@ -225,24 +236,14 @@ class NumbersGame {
     }
 
     /** Numbers still free to use in the working, by tile index. */
-    fun isTileFree(index: Int): Boolean {
-        val n = numbers.getOrNull(index) ?: return false
-        val usedCount = ExpressionEvaluator.numbersIn(working).count { it == n }
-        val earlierSame = numbers.take(index).count { it == n }
-        return earlierSame >= usedCount
-    }
+    fun isTileFree(index: Int): Boolean = Working.isTileFree(working, numbers, index)
 
     fun append(token: String) {
-        working = (working.trimEnd() + " " + token).trim()
+        working = Working.append(working, token)
     }
 
     fun backspace() {
-        val trimmed = working.trimEnd()
-        working = if (trimmed.lastOrNull()?.isDigit() == true) {
-            trimmed.dropLastWhile { it.isDigit() }.trimEnd()
-        } else {
-            trimmed.dropLast(1).trimEnd()
-        }
+        working = Working.backspace(working)
     }
 
     suspend fun finish(session: Session?) {

@@ -5,7 +5,19 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.use
 import com.xrmx.countdown_game.game.BoardCard
 import com.xrmx.countdown_game.game.ConundrumGenerator
+import com.xrmx.countdown_game.game.LoopbackLink
+import com.xrmx.countdown_game.game.MatchAction
+import com.xrmx.countdown_game.game.MatchFormat
+import com.xrmx.countdown_game.game.MatchLink
+import com.xrmx.countdown_game.game.MatchRules
+import com.xrmx.countdown_game.game.MatchSession
 import com.xrmx.countdown_game.game.WordDictionary
+import com.xrmx.countdown_game.platform.BluetoothGames
+import com.xrmx.countdown_game.platform.FoundHost
+import com.xrmx.countdown_game.ui.TwoPlayerStep
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.skia.EncodedImageFormat
 import java.io.File
@@ -24,7 +36,7 @@ fun main(args: Array<String>) {
     fun startedSecondsAgo(s: Int) = TimeSource.Monotonic.markNow() - s.seconds
 
     fun shot(name: String, dark: Boolean = false, height: Int = 2160, setup: AppState.() -> Unit) {
-        val state = AppState().apply(setup)
+        val state = AppState(bluetooth = FakeBluetooth).apply(setup)
         ImageComposeScene(width = 1080, height = height, density = Density(2.7f)) {
             App(state, darkTheme = dark, preloadedDictionary = dictionary)
         }.use { scene ->
@@ -75,7 +87,53 @@ fun main(args: Array<String>) {
         tab = Tab.Conundrum
         conundrum.start(ConundrumGenerator(dictionary, Random(7)), clockSeconds = 30, startedAt = startedSecondsAgo(8))
     }
+    // Two phones joined in memory: screenshots show the guest's phone.
+    fun AppState.twoPlayerGame(play: (host: MatchSession, guest: MatchSession) -> Unit) {
+        val (hostLink, guestLink) = LoopbackLink.pair()
+        val host = MatchSession.host(
+            hostLink, MatchFormat.Full.rounds, MatchRules(), "Alex", dictionary,
+            Dispatchers.Unconfined, Dispatchers.Unconfined, Random(3),
+        )
+        val guest = MatchSession.guest(guestLink, "Sam", Dispatchers.Unconfined)
+        play(host, guest)
+        tab = Tab.TwoPlayer
+        twoPlayer.session = guest
+        twoPlayer.step = TwoPlayerStep.Match
+    }
+    fun MatchSession.pickLetters(vowels: Int) {
+        repeat(vowels) { act(MatchAction.Vowel) }
+        repeat(9 - vowels) { act(MatchAction.Consonant) }
+    }
+
+    shot("two-player-setup") {
+        tab = Tab.TwoPlayer
+        settings.playerName = "Sam"
+        twoPlayer.rounds = MatchFormat.Half.rounds
+    }
+    shot("two-player-playing") {
+        twoPlayerGame { host, _ -> host.pickLetters(4) }
+        val match = twoPlayer.session!!.state.value!!
+        twoPlayer.syncRound(match)
+        twoPlayer.clockStart(match.clock)
+        twoPlayer.input = dictionary.wordsFrom(match.letters).getOrNull(3).orEmpty()
+    }
+    shot("two-player-results") {
+        twoPlayerGame { host, guest ->
+            host.pickLetters(4)
+            val words = dictionary.wordsFrom(host.state.value!!.letters)
+            host.act(MatchAction.Declare(words.getOrNull(2).orEmpty()))
+            guest.act(MatchAction.Declare(words.getOrNull(5).orEmpty()))
+        }
+    }
     shot("settings", height = 4400) {
         showSettings = true
     }
+}
+
+/** Stands in for Bluetooth so the two-player screens render as they do on a phone. */
+private object FakeBluetooth : BluetoothGames {
+    override fun problem(): String? = null
+    override suspend fun host(name: String): MatchLink = error("Not available in screenshots")
+    override fun scan(): Flow<List<FoundHost>> = emptyFlow()
+    override suspend fun join(host: FoundHost): MatchLink = error("Not available in screenshots")
 }

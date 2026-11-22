@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.Abc
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -34,7 +35,9 @@ import androidx.compose.ui.unit.dp
 import com.xrmx.countdown_game.game.ConundrumGenerator
 import com.xrmx.countdown_game.game.WordDictionary
 import com.xrmx.countdown_game.game.WordListInfo
+import com.xrmx.countdown_game.platform.BluetoothGames
 import com.xrmx.countdown_game.platform.PlatformBackHandler
+import com.xrmx.countdown_game.platform.bluetoothGames
 import com.xrmx.countdown_game.platform.readStoredText
 import com.xrmx.countdown_game.platform.writeStoredText
 import com.xrmx.countdown_game.ui.ConundrumGame
@@ -47,6 +50,8 @@ import com.xrmx.countdown_game.ui.NumbersScreen
 import com.xrmx.countdown_game.ui.Session
 import com.xrmx.countdown_game.ui.Settings
 import com.xrmx.countdown_game.ui.SettingsScreen
+import com.xrmx.countdown_game.ui.TwoPlayerScreen
+import com.xrmx.countdown_game.ui.TwoPlayerState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.withContext
@@ -55,15 +60,17 @@ enum class Tab(val label: String, val icon: ImageVector) {
     Letters("Letters", Icons.Filled.Abc),
     Numbers("Numbers", Icons.Filled.Calculate),
     Conundrum("Conundrum", Icons.Filled.Extension),
+    TwoPlayer("2 Player", Icons.Filled.Groups),
 }
 
 /** Everything the app remembers while it runs. */
-class AppState {
+class AppState(bluetooth: BluetoothGames? = bluetoothGames()) {
     val settings = Settings()
     val session = Session()
     val letters = LettersGame()
     val numbers = NumbersGame()
     val conundrum = ConundrumGame()
+    val twoPlayer = TwoPlayerState(bluetooth)
     var tab by mutableStateOf(Tab.Letters)
     var showSettings by mutableStateOf(false)
     var dictionary by mutableStateOf<WordDictionary?>(null)
@@ -171,6 +178,7 @@ fun App(
                     Tab.Letters -> LettersScreen(state.letters, dictionary, settings, session, screenModifier)
                     Tab.Numbers -> NumbersScreen(state.numbers, settings, session, screenModifier)
                     Tab.Conundrum -> ConundrumScreen(state.conundrum, generator, settings, session, screenModifier)
+                    Tab.TwoPlayer -> TwoPlayerScreen(state.twoPlayer, settings, dictionary, screenModifier)
                 }
             }
         }

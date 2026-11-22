@@ -15,7 +15,9 @@ class WordDictionary(words: Collection<String>) {
         val clean = words.asSequence()
             .map { it.trim().lowercase() }
             .filter { it.length in 2..LetterRules.TOTAL && it.all { c -> c in 'a'..'z' } }
-            .toSortedSet(compareByDescending<String> { it.length }.thenBy { it })
+            .distinct()
+            .sortedWith(compareByDescending<String> { it.length }.thenBy { it })
+            .toList()
         this.words = clean.toTypedArray()
         wordSet = clean.toHashSet()
         counts = ByteArray(this.words.size * 26)

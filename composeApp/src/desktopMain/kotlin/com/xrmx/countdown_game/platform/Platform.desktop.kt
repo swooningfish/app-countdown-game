@@ -49,3 +49,5 @@ actual fun KeepScreenOn(enabled: Boolean) = Unit
 actual fun playBeep(final: Boolean) {
     runCatching { java.awt.Toolkit.getDefaultToolkit().beep() }
 }
+
+actual fun vibrate(final: Boolean) = Unit

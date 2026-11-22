@@ -40,8 +40,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -50,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xrmx.countdown_game.game.NumberRules
 import com.xrmx.countdown_game.platform.playBeep
+import com.xrmx.countdown_game.platform.vibrate
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.min
@@ -259,7 +258,6 @@ fun CountdownClock(
 ) {
     val totalMs = seconds * 1000L
     val latestOnTimeUp by rememberUpdatedState(onTimeUp)
-    val haptics = LocalHapticFeedback.current
     val alerts by rememberUpdatedState(LocalClockAlerts.current)
     var elapsedMs by remember(start) { mutableLongStateOf(start.elapsedNow().inWholeMilliseconds.coerceAtMost(totalMs)) }
     LaunchedEffect(start) {
@@ -273,9 +271,7 @@ fun CountdownClock(
                 val a = alerts
                 if (a.enabled && remaining <= a.seconds) {
                     val final = remaining == 0
-                    if (a.vibrate) {
-                        haptics.performHapticFeedback(if (final) HapticFeedbackType.LongPress else HapticFeedbackType.TextHandleMove)
-                    }
+                    if (a.vibrate) vibrate(final)
                     if (a.beep) playBeep(final)
                 }
             }

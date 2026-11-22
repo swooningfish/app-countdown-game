@@ -114,3 +114,12 @@ actual fun KeepScreenOn(enabled: Boolean) {
 actual fun playBeep(final: Boolean) {
     platform.AudioToolbox.AudioServicesPlaySystemSound(if (final) 1005u else 1103u)
 }
+
+/** A firm tap each second and the full vibration when time is up. */
+actual fun vibrate(final: Boolean) {
+    if (final) {
+        platform.AudioToolbox.AudioServicesPlaySystemSound(platform.AudioToolbox.kSystemSoundID_Vibrate)
+    } else {
+        platform.UIKit.UIImpactFeedbackGenerator(platform.UIKit.UIImpactFeedbackStyle.UIImpactFeedbackStyleHeavy).impactOccurred()
+    }
+}

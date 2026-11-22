@@ -35,3 +35,6 @@ expect fun KeepScreenOn(enabled: Boolean)
 
 /** A short beep for the clock's final seconds; a longer one when [final] (time is up). */
 expect fun playBeep(final: Boolean)
+
+/** A short buzz for the clock's final seconds; a longer one when [final] (time is up). */
+expect fun vibrate(final: Boolean)

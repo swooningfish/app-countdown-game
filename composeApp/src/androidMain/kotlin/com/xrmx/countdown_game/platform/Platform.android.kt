@@ -82,3 +82,24 @@ private val beeper: android.media.ToneGenerator? by lazy {
 actual fun playBeep(final: Boolean) {
     runCatching { beeper?.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, if (final) 600 else 120) }
 }
+
+private val vibrator: android.os.Vibrator? by lazy {
+    val context = AndroidPlatform.context
+    if (Build.VERSION.SDK_INT >= 31) {
+        context.getSystemService(android.os.VibratorManager::class.java)?.defaultVibrator
+    } else {
+        @Suppress("DEPRECATION")
+        context.getSystemService(android.os.Vibrator::class.java)
+    }
+}
+
+/**
+ * Uses the vibrator directly: view haptics are a faint tick that many phones play
+ * quietly or not at all, and they're off when the phone's touch feedback is off.
+ */
+actual fun vibrate(final: Boolean) {
+    runCatching {
+        val v = vibrator?.takeIf { it.hasVibrator() } ?: return
+        v.vibrate(android.os.VibrationEffect.createOneShot(if (final) 500L else 60L, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+    }
+}

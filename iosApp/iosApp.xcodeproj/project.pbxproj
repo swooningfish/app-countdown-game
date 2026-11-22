@@ -228,7 +228,7 @@
 					"-framework",
 					ComposeApp,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.swooningfish.countdown;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.xrmx.countdown-game";
 				PRODUCT_NAME = Countdown;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -257,7 +257,7 @@
 					"-framework",
 					ComposeApp,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.swooningfish.countdown;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.xrmx.countdown-game";
 				PRODUCT_NAME = Countdown;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";

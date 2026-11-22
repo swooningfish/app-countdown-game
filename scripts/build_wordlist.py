@@ -1,7 +1,7 @@
 """Builds the bundled Countdown word list from a SCOWL / ESDB export.
 
 Download the source list (British spellings, size 70) from:
-  http://app.aspell.net/create?max_size=70&spelling=GBs&spelling=GBz&max_variant=0&diacritic=strip&download=wordlist&encoding=utf-8&format=inline
+  https://app.aspell.net/create?max_size=70&spelling=GBs&spelling=GBz&max_variant=0&diacritic=strip&download=wordlist&encoding=utf-8&format=inline
 
 Usage:
   python -I scripts/build_wordlist.py <scowl.txt>

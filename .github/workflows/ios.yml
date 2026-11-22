@@ -1,0 +1,40 @@
+name: iOS CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: iOS framework, tests + simulator app
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Kotlin/Native tests on the iOS simulator
+        run: ./gradlew :composeApp:iosSimulatorArm64Test --console=plain
+      - name: Build iOS app for the simulator
+        run: |
+          xcodebuild -project iosApp/iosApp.xcodeproj -target iosApp \
+            -configuration Debug -sdk iphonesimulator -arch arm64 \
+            CODE_SIGNING_ALLOWED=NO build
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: ios-test-reports
+          path: composeApp/build/reports/tests/
+          if-no-files-found: ignore

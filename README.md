@@ -33,7 +33,7 @@ A Kotlin Multiplatform app for **Android and iOS**, built with Compose Multiplat
 - Pick **Vowel** or **Consonant** one at a time. Letters are drawn from weighted piles, like on the show. You can also **type in** the nine letters from a real episode.
 - The show's rule of **at least 3 vowels and 4 consonants** is enforced. You can switch this off in Settings.
 - Find the longest word before the **clock** runs out. Tap the tiles or type your word. Letters you've used are greyed out.
-- The phone gives a light buzz for each of the last 5 seconds, and the round ends on time even if you switch to another tab.
+- The clock can vibrate, beep or both for each of the last 5 or 10 seconds (set in Settings). The round ends on time even if you switch to another tab.
 - The results show:
   - whether your word is valid,
   - your score (1 point per letter, **18 for a nine-letter word**),
@@ -92,6 +92,7 @@ Play a friend, each on your own phone. One phone hosts and the other joins over 
 
 ### Settings
 - **Clock:** on or off, with a time limit of 15, 30 (the show's, and the default), 45, 60, 90 or 120 seconds.
+- **Final seconds alert:** off, or the last 5 (the default) or 10 seconds, with a vibration, a beep or both. Vibrate is on by default.
 - **Letters:** the vowel/consonant rule.
 - **Numbers:** target difficulty and nasty large numbers.
 - **Word list:**

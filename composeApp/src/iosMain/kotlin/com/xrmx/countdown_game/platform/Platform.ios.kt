@@ -109,3 +109,8 @@ actual fun KeepScreenOn(enabled: Boolean) {
         onDispose { UIApplication.sharedApplication.idleTimerDisabled = false }
     }
 }
+
+/** iOS system sounds: a short tick each second and a longer tone when time is up. Silent mode mutes them. */
+actual fun playBeep(final: Boolean) {
+    platform.AudioToolbox.AudioServicesPlaySystemSound(if (final) 1005u else 1103u)
+}

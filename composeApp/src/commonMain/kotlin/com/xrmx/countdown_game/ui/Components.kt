@@ -30,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
@@ -48,6 +49,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xrmx.countdown_game.game.NumberRules
+import com.xrmx.countdown_game.platform.playBeep
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.min
@@ -231,8 +233,18 @@ fun TargetDisplay(target: Int?, modifier: Modifier = Modifier) {
     }
 }
 
-/** Seconds at the end of the clock that are marked with a vibration. */
-private const val FINAL_SECONDS = 5
+/** How the clock marks its final seconds: a tap or beep each second, and a stronger one at the end. */
+data class ClockAlerts(
+    /** How many final seconds are marked, 0 for none. */
+    val seconds: Int = Settings.DEFAULT_ALERT_SECONDS,
+    val vibrate: Boolean = true,
+    val beep: Boolean = false,
+) {
+    val enabled: Boolean get() = seconds > 0 && (vibrate || beep)
+}
+
+/** The player's clock alert settings, provided by the app. */
+val LocalClockAlerts = staticCompositionLocalOf { ClockAlerts() }
 
 /**
  * The 30-second clock: a hand sweeps from 12 to 6 o'clock while the elapsed time fills in behind it.
@@ -248,18 +260,23 @@ fun CountdownClock(
     val totalMs = seconds * 1000L
     val latestOnTimeUp by rememberUpdatedState(onTimeUp)
     val haptics = LocalHapticFeedback.current
+    val alerts by rememberUpdatedState(LocalClockAlerts.current)
     var elapsedMs by remember(start) { mutableLongStateOf(start.elapsedNow().inWholeMilliseconds.coerceAtMost(totalMs)) }
     LaunchedEffect(start) {
-        // A light tap for each of the last few seconds, and a stronger one when time is up.
+        // Mark each of the last few seconds, and time running out, as the player chose in Settings.
         var lastTapped = ((totalMs - elapsedMs + 999) / 1000).toInt()
         while (true) {
             elapsedMs = start.elapsedNow().inWholeMilliseconds.coerceAtMost(totalMs)
             val remaining = ((totalMs - elapsedMs + 999) / 1000).toInt()
             if (remaining < lastTapped) {
                 lastTapped = remaining
-                when (remaining) {
-                    0 -> haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    in 1..FINAL_SECONDS -> haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                val a = alerts
+                if (a.enabled && remaining <= a.seconds) {
+                    val final = remaining == 0
+                    if (a.vibrate) {
+                        haptics.performHapticFeedback(if (final) HapticFeedbackType.LongPress else HapticFeedbackType.TextHandleMove)
+                    }
+                    if (a.beep) playBeep(final)
                 }
             }
             if (elapsedMs >= totalMs) {

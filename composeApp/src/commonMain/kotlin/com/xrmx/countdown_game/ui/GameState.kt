@@ -36,6 +36,13 @@ class Settings {
     var targetDifficulty by mutableStateOf(TargetDifficulty.Random)
     var nastyLargeNumbers by mutableStateOf(false)
 
+    /** How many of the clock's final seconds are marked, 0 for none. */
+    var alertSeconds by mutableIntStateOf(DEFAULT_ALERT_SECONDS)
+    var alertVibrate by mutableStateOf(true)
+    var alertBeep by mutableStateOf(false)
+
+    val clockAlerts: ClockAlerts get() = ClockAlerts(alertSeconds, alertVibrate, alertBeep)
+
     /** Shown to the other player in two-player games. */
     var playerName by mutableStateOf("")
 
@@ -52,6 +59,9 @@ class Settings {
         "enforceLetterRule=$enforceLetterRule",
         "targetDifficulty=${targetDifficulty.name}",
         "nastyLargeNumbers=$nastyLargeNumbers",
+        "alertSeconds=$alertSeconds",
+        "alertVibrate=$alertVibrate",
+        "alertBeep=$alertBeep",
         "playerName=${playerName.replace('\n', ' ')}",
     ).joinToString("\n")
 
@@ -64,6 +74,9 @@ class Settings {
         values["enforceLetterRule"]?.toBooleanStrictOrNull()?.let { enforceLetterRule = it }
         values["targetDifficulty"]?.let { name -> TargetDifficulty.entries.firstOrNull { it.name == name } }?.let { targetDifficulty = it }
         values["nastyLargeNumbers"]?.toBooleanStrictOrNull()?.let { nastyLargeNumbers = it }
+        values["alertSeconds"]?.toIntOrNull()?.takeIf { it in ALERT_OPTIONS }?.let { alertSeconds = it }
+        values["alertVibrate"]?.toBooleanStrictOrNull()?.let { alertVibrate = it }
+        values["alertBeep"]?.toBooleanStrictOrNull()?.let { alertBeep = it }
         values["playerName"]?.let { playerName = it.take(MAX_NAME) }
     }
 
@@ -71,6 +84,10 @@ class Settings {
         const val DEFAULT_CLOCK_SECONDS = 30
         const val MAX_NAME = 20
         val CLOCK_OPTIONS = listOf(15, 30, 45, 60, 90, 120)
+        const val DEFAULT_ALERT_SECONDS = 5
+
+        /** 0 switches the final-seconds alert off. */
+        val ALERT_OPTIONS = listOf(0, 5, 10)
     }
 }
 

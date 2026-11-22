@@ -73,3 +73,12 @@ actual fun KeepScreenOn(enabled: Boolean) {
         onDispose { view.keepScreenOn = false }
     }
 }
+
+/** Created on first use; plays on the media volume so it follows the phone's volume buttons. */
+private val beeper: android.media.ToneGenerator? by lazy {
+    runCatching { android.media.ToneGenerator(android.media.AudioManager.STREAM_MUSIC, 80) }.getOrNull()
+}
+
+actual fun playBeep(final: Boolean) {
+    runCatching { beeper?.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, if (final) 600 else 120) }
+}

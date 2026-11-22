@@ -45,3 +45,7 @@ actual fun PlatformBackHandler(enabled: Boolean, onBack: () -> Unit) = Unit
 
 @Composable
 actual fun KeepScreenOn(enabled: Boolean) = Unit
+
+actual fun playBeep(final: Boolean) {
+    runCatching { java.awt.Toolkit.getDefaultToolkit().beep() }
+}

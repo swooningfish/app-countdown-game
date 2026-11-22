@@ -32,3 +32,6 @@ expect fun PlatformBackHandler(enabled: Boolean, onBack: () -> Unit)
 /** Stops the screen dimming and locking while [enabled], e.g. during a two-player game. */
 @Composable
 expect fun KeepScreenOn(enabled: Boolean)
+
+/** A short beep for the clock's final seconds; a longer one when [final] (time is up). */
+expect fun playBeep(final: Boolean)

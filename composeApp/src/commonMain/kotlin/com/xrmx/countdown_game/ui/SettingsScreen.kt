@@ -105,6 +105,7 @@ fun SettingsScreen(
                 onChange = { settings.clockEnabled = it },
             )
             TimeLimitChips(settings)
+            FinalSecondsSettings(settings)
         }
 
         SectionCard(title = "Letters") {
@@ -283,6 +284,54 @@ private fun TimeLimitChips(settings: Settings) {
                 )
             }
         }
+    }
+}
+
+/** How the last seconds of the clock are marked: how many, and with a vibration and/or a beep. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FinalSecondsSettings(settings: Settings) {
+    val active = settings.clockEnabled
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            "Final seconds alert",
+            style = MaterialTheme.typography.labelLarge,
+            color = if (active) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Settings.ALERT_OPTIONS.forEach { seconds ->
+                FilterChip(
+                    selected = settings.alertSeconds == seconds,
+                    onClick = { settings.alertSeconds = seconds },
+                    enabled = active,
+                    label = { Text(if (seconds == 0) "Off" else "Last ${seconds}s") },
+                )
+            }
+        }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val on = active && settings.alertSeconds > 0
+            FilterChip(
+                selected = settings.alertVibrate,
+                onClick = { settings.alertVibrate = !settings.alertVibrate },
+                enabled = on,
+                label = { Text("Vibrate") },
+            )
+            FilterChip(
+                selected = settings.alertBeep,
+                onClick = { settings.alertBeep = !settings.alertBeep },
+                enabled = on,
+                label = { Text("Beep") },
+            )
+        }
+        Text(
+            when {
+                settings.alertSeconds == 0 -> "No alert as time runs out"
+                !settings.alertVibrate && !settings.alertBeep -> "Choose vibrate, beep or both"
+                else -> "Once a second for the last ${settings.alertSeconds} seconds, and longer when time is up"
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

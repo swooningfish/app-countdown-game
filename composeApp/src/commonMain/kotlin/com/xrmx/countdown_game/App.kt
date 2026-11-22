@@ -22,6 +22,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,6 +48,7 @@ import com.xrmx.countdown_game.ui.ConundrumGame
 import com.xrmx.countdown_game.ui.ConundrumScreen
 import com.xrmx.countdown_game.ui.CountdownTheme
 import com.xrmx.countdown_game.ui.LettersGame
+import com.xrmx.countdown_game.ui.LocalClockAlerts
 import com.xrmx.countdown_game.ui.LettersScreen
 import com.xrmx.countdown_game.ui.NumbersGame
 import com.xrmx.countdown_game.ui.NumbersScreen
@@ -128,90 +130,92 @@ fun App(
     }
 
     CountdownTheme(darkTheme) {
-        val settings = state.settings
-        val session = state.session
-        val dictionary = state.dictionary
-        val generator = remember(dictionary) { dictionary?.let { ConundrumGenerator(it) } }
-        val tab = state.tab
-        val scope = rememberCoroutineScope()
+        CompositionLocalProvider(LocalClockAlerts provides state.settings.clockAlerts) {
+            val settings = state.settings
+            val session = state.session
+            val dictionary = state.dictionary
+            val generator = remember(dictionary) { dictionary?.let { ConundrumGenerator(it) } }
+            val tab = state.tab
+            val scope = rememberCoroutineScope()
 
-        // Each round's clock keeps running if the player switches tab or opens Settings, so the
-        // round still finishes on time rather than when they come back.
-        WhenTimeIsUp(state.letters.clockStart, state.letters.clockLimit) {
-            dictionary?.let { state.letters.finish(it, session) }
-        }
-        WhenTimeIsUp(state.numbers.clockStart, state.numbers.clockLimit) {
-            // Launched apart from the effect, which ends as soon as the clock is cleared.
-            scope.launch { state.numbers.finish(session) }
-        }
-        WhenTimeIsUp(state.conundrum.clockStart, state.conundrum.clockLimit) {
-            state.conundrum.finish(session)
-        }
+            // Each round's clock keeps running if the player switches tab or opens Settings, so the
+            // round still finishes on time rather than when they come back.
+            WhenTimeIsUp(state.letters.clockStart, state.letters.clockLimit) {
+                dictionary?.let { state.letters.finish(it, session) }
+            }
+            WhenTimeIsUp(state.numbers.clockStart, state.numbers.clockLimit) {
+                // Launched apart from the effect, which ends as soon as the clock is cleared.
+                scope.launch { state.numbers.finish(session) }
+            }
+            WhenTimeIsUp(state.conundrum.clockStart, state.conundrum.clockLimit) {
+                state.conundrum.finish(session)
+            }
 
-        PlatformBackHandler(enabled = state.showSettings) { state.showSettings = false }
-        // An auto-lock between rounds can suspend the app and drop the Bluetooth link.
-        KeepScreenOn(state.twoPlayer.step != TwoPlayerStep.Setup)
+            PlatformBackHandler(enabled = state.showSettings) { state.showSettings = false }
+            // An auto-lock between rounds can suspend the app and drop the Bluetooth link.
+            KeepScreenOn(state.twoPlayer.step != TwoPlayerStep.Setup)
 
-        Scaffold(
-            topBar = {
-                CenterAlignedTopAppBar(
-                    title = { Text(if (state.showSettings) "Settings" else AppInfo.NAME, fontWeight = FontWeight.Bold) },
-                    navigationIcon = {
-                        if (state.showSettings) {
-                            IconButton(onClick = { state.showSettings = false }) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            Scaffold(
+                topBar = {
+                    CenterAlignedTopAppBar(
+                        title = { Text(if (state.showSettings) "Settings" else AppInfo.NAME, fontWeight = FontWeight.Bold) },
+                        navigationIcon = {
+                            if (state.showSettings) {
+                                IconButton(onClick = { state.showSettings = false }) {
+                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                                }
+                            } else {
+                                AssistChip(
+                                    onClick = { state.showSettings = true },
+                                    label = { Text("${session.score}") },
+                                    leadingIcon = { Icon(Icons.Filled.EmojiEvents, contentDescription = "Score") },
+                                    modifier = Modifier.padding(start = 8.dp),
+                                )
                             }
-                        } else {
-                            AssistChip(
-                                onClick = { state.showSettings = true },
-                                label = { Text("${session.score}") },
-                                leadingIcon = { Icon(Icons.Filled.EmojiEvents, contentDescription = "Score") },
-                                modifier = Modifier.padding(start = 8.dp),
-                            )
-                        }
-                    },
-                    actions = {
-                        if (!state.showSettings) {
-                            IconButton(onClick = { state.showSettings = true }) {
-                                Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                        },
+                        actions = {
+                            if (!state.showSettings) {
+                                IconButton(onClick = { state.showSettings = true }) {
+                                    Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                                }
                             }
-                        }
-                    },
-                )
-            },
-            bottomBar = {
-                if (!state.showSettings) {
-                    NavigationBar {
-                        Tab.entries.forEach { t ->
-                            NavigationBarItem(
-                                selected = t == tab,
-                                onClick = { state.tab = t },
-                                icon = { Icon(t.icon, contentDescription = null) },
-                                label = { Text(t.label) },
-                            )
+                        },
+                    )
+                },
+                bottomBar = {
+                    if (!state.showSettings) {
+                        NavigationBar {
+                            Tab.entries.forEach { t ->
+                                NavigationBarItem(
+                                    selected = t == tab,
+                                    onClick = { state.tab = t },
+                                    icon = { Icon(t.icon, contentDescription = null) },
+                                    label = { Text(t.label) },
+                                )
+                            }
                         }
                     }
-                }
-            },
-        ) { padding ->
-            val screenModifier = Modifier.padding(padding).consumeWindowInsets(padding).imePadding()
-            if (state.showSettings) {
-                SettingsScreen(
-                    settings = settings,
-                    session = session,
-                    wordList = state.wordList,
-                    onWordListChanged = { loaded ->
-                        state.dictionary = loaded.dictionary
-                        state.wordList = loaded.info
-                    },
-                    modifier = screenModifier,
-                )
-            } else {
-                when (tab) {
-                    Tab.Letters -> LettersScreen(state.letters, dictionary, settings, session, screenModifier)
-                    Tab.Numbers -> NumbersScreen(state.numbers, settings, session, screenModifier)
-                    Tab.Conundrum -> ConundrumScreen(state.conundrum, generator, settings, session, screenModifier)
-                    Tab.TwoPlayer -> TwoPlayerScreen(state.twoPlayer, settings, dictionary, screenModifier)
+                },
+            ) { padding ->
+                val screenModifier = Modifier.padding(padding).consumeWindowInsets(padding).imePadding()
+                if (state.showSettings) {
+                    SettingsScreen(
+                        settings = settings,
+                        session = session,
+                        wordList = state.wordList,
+                        onWordListChanged = { loaded ->
+                            state.dictionary = loaded.dictionary
+                            state.wordList = loaded.info
+                        },
+                        modifier = screenModifier,
+                    )
+                } else {
+                    when (tab) {
+                        Tab.Letters -> LettersScreen(state.letters, dictionary, settings, session, screenModifier)
+                        Tab.Numbers -> NumbersScreen(state.numbers, settings, session, screenModifier)
+                        Tab.Conundrum -> ConundrumScreen(state.conundrum, generator, settings, session, screenModifier)
+                        Tab.TwoPlayer -> TwoPlayerScreen(state.twoPlayer, settings, dictionary, screenModifier)
+                    }
                 }
             }
         }

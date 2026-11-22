@@ -30,9 +30,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -65,6 +62,7 @@ private sealed interface ImportStatus {
     data class Failed(val message: String) : ImportStatus
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     settings: Settings,
@@ -120,14 +118,13 @@ fun SettingsScreen(
         SectionCard(title = "Numbers") {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Target difficulty", style = MaterialTheme.typography.labelLarge)
-                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                    TargetDifficulty.entries.forEachIndexed { index, difficulty ->
-                        SegmentedButton(
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TargetDifficulty.entries.forEach { difficulty ->
+                        FilterChip(
                             selected = settings.targetDifficulty == difficulty,
                             onClick = { settings.targetDifficulty = difficulty },
-                            shape = SegmentedButtonDefaults.itemShape(index, TargetDifficulty.entries.size),
-                            icon = {},
-                        ) { Text(difficulty.label, maxLines = 1) }
+                            label = { Text(difficulty.label) },
+                        )
                     }
                 }
                 Text(
@@ -165,12 +162,12 @@ fun SettingsScreen(
             }
             val working = status == ImportStatus.Working
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilledTonalButton(onClick = { showDownload = true }, enabled = !working, modifier = Modifier.weight(1f)) {
+                FilledTonalButton(onClick = { showDownload = true }, enabled = !working, modifier = Modifier.weight(1f), contentPadding = PairedButtonPadding) {
                     Icon(Icons.Filled.CloudDownload, null, Modifier.size(ButtonDefaults.IconSize))
                     Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                     Text("Download")
                 }
-                OutlinedButton(onClick = pickFile, enabled = !working, modifier = Modifier.weight(1f)) {
+                OutlinedButton(onClick = pickFile, enabled = !working, modifier = Modifier.weight(1f), contentPadding = PairedButtonPadding) {
                     Icon(Icons.Filled.FileOpen, null, Modifier.size(ButtonDefaults.IconSize))
                     Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                     Text("Upload file")

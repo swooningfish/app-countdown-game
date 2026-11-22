@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Dialpad
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
@@ -63,6 +64,7 @@ import com.xrmx.countdown_game.game.NumberRules
 import com.xrmx.countdown_game.game.NumbersSolution
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun NumbersScreen(game: NumbersGame, settings: Settings, session: Session, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
@@ -111,7 +113,7 @@ fun NumbersScreen(game: NumbersGame, settings: Settings, session: Session, modif
                         generateTarget()
                     }
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally)) {
+                FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally)) {
                     TextButton(onClick = generateTarget, enabled = game.isFull && !game.generatingTarget) {
                         Icon(Icons.Filled.Refresh, null, Modifier.size(ButtonDefaults.IconSize))
                         Spacer(Modifier.width(4.dp))
@@ -122,7 +124,11 @@ fun NumbersScreen(game: NumbersGame, settings: Settings, session: Session, modif
                         Spacer(Modifier.width(4.dp))
                         Text("Set target")
                     }
-                    TextButton(onClick = { showNumbersDialog = true }) { Text("My numbers") }
+                    TextButton(onClick = { showNumbersDialog = true }) {
+                        Icon(Icons.Filled.Dialpad, null, Modifier.size(ButtonDefaults.IconSize))
+                        Spacer(Modifier.width(4.dp))
+                        Text("My numbers")
+                    }
                 }
                 if (game.numbers.isNotEmpty() || game.target != null) {
                     OutlinedButton(onClick = { game.resetBoard(settings) }, modifier = Modifier.align(Alignment.CenterHorizontally)) {

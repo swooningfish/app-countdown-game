@@ -161,11 +161,13 @@ private fun PickLettersControls(game: LettersGame, settings: Settings, onType: (
             onClick = game::pickVowel,
             enabled = LetterRules.canPickVowel(game.letters, settings.enforceLetterRule),
             modifier = Modifier.weight(1f),
+            contentPadding = PairedButtonPadding,
         ) { Text("Vowel") }
         FilledTonalButton(
             onClick = game::pickConsonant,
             enabled = LetterRules.canPickConsonant(game.letters, settings.enforceLetterRule),
             modifier = Modifier.weight(1f),
+            contentPadding = PairedButtonPadding,
         ) { Text("Consonant") }
     }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -185,12 +187,12 @@ private fun PickLettersControls(game: LettersGame, settings: Settings, onType: (
 @Composable
 fun ReadyControls(clockSeconds: Int?, solveEnabled: Boolean, onStart: () -> Unit, onSolve: () -> Unit) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Button(onClick = onStart, modifier = Modifier.weight(1f)) {
+        Button(onClick = onStart, modifier = Modifier.weight(1f), contentPadding = PairedButtonPadding) {
             Icon(if (clockSeconds != null) Icons.Filled.Timer else Icons.Filled.Check, null, Modifier.size(ButtonDefaults.IconSize))
             Spacer(Modifier.width(ButtonDefaults.IconSpacing))
             Text(if (clockSeconds != null) "Start ${clockSeconds}s clock" else "Play")
         }
-        OutlinedButton(onClick = onSolve, enabled = solveEnabled, modifier = Modifier.weight(1f)) {
+        OutlinedButton(onClick = onSolve, enabled = solveEnabled, modifier = Modifier.weight(1f), contentPadding = PairedButtonPadding) {
             Icon(Icons.Filled.Lightbulb, null, Modifier.size(ButtonDefaults.IconSize))
             Spacer(Modifier.width(ButtonDefaults.IconSpacing))
             Text("Solve")

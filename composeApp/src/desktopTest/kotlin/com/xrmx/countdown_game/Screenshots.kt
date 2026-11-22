@@ -31,13 +31,16 @@ import kotlin.time.TimeSource
  */
 fun main(args: Array<String>) {
     val out = File(args.firstOrNull() ?: "docs/screenshots").apply { mkdirs() }
+    // An optional second argument scales the text, to check layouts with the phone's larger text sizes.
+    val fontScale = args.getOrNull(1)?.toFloat() ?: 1f
     val dictionary = WordDictionary.parse(File("src/commonMain/composeResources/files/words.txt").readText())
     // Pretend the clock started a while ago so it shows part of its sweep.
     fun startedSecondsAgo(s: Int) = TimeSource.Monotonic.markNow() - s.seconds
 
     fun shot(name: String, dark: Boolean = false, height: Int = 2160, setup: AppState.() -> Unit) {
         val state = AppState(bluetooth = FakeBluetooth).apply(setup)
-        ImageComposeScene(width = 1080, height = height, density = Density(2.7f)) {
+        // Larger text needs a taller image to show the whole screen.
+        ImageComposeScene(width = 1080, height = (height * fontScale * fontScale).toInt(), density = Density(2.7f, fontScale)) {
             App(state, darkTheme = dark, preloadedDictionary = dictionary)
         }.use { scene ->
             var image = scene.render(0)

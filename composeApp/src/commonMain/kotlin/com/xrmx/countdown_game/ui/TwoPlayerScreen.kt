@@ -274,12 +274,12 @@ private fun MatchSetup(
             }
             state.problem?.let { Notice(Icons.Filled.Warning, it) }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onHost, enabled = bluetoothAvailable && canHost, modifier = Modifier.weight(1f)) {
+                Button(onClick = onHost, enabled = bluetoothAvailable && canHost, modifier = Modifier.weight(1f), contentPadding = PairedButtonPadding) {
                     Icon(Icons.Filled.Bluetooth, null, Modifier.size(ButtonDefaults.IconSize))
                     Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                     Text("Host a game")
                 }
-                FilledTonalButton(onClick = onJoin, enabled = bluetoothAvailable, modifier = Modifier.weight(1f)) {
+                FilledTonalButton(onClick = onJoin, enabled = bluetoothAvailable, modifier = Modifier.weight(1f), contentPadding = PairedButtonPadding) {
                     Icon(Icons.Filled.BluetoothSearching, null, Modifier.size(ButtonDefaults.IconSize))
                     Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                     Text("Join a game")
@@ -315,12 +315,12 @@ private fun MatchSetup(
             }
             val full = rounds.size >= RunningOrder.MAX_ROUNDS
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { state.rounds = RunningOrder.add(rounds, RoundType.Letters) }, enabled = !full, modifier = Modifier.weight(1f)) {
+                OutlinedButton(onClick = { state.rounds = RunningOrder.add(rounds, RoundType.Letters) }, enabled = !full, modifier = Modifier.weight(1f), contentPadding = PairedButtonPadding) {
                     Icon(Icons.Filled.Add, null, Modifier.size(ButtonDefaults.IconSize))
                     Spacer(Modifier.width(4.dp))
                     Text("Letters")
                 }
-                OutlinedButton(onClick = { state.rounds = RunningOrder.add(rounds, RoundType.Numbers) }, enabled = !full, modifier = Modifier.weight(1f)) {
+                OutlinedButton(onClick = { state.rounds = RunningOrder.add(rounds, RoundType.Numbers) }, enabled = !full, modifier = Modifier.weight(1f), contentPadding = PairedButtonPadding) {
                     Icon(Icons.Filled.Add, null, Modifier.size(ButtonDefaults.IconSize))
                     Spacer(Modifier.width(4.dp))
                     Text("Numbers")
@@ -487,11 +487,13 @@ private fun PickingView(s: MatchState, me: Int, session: MatchSession, state: Tw
                         onClick = { session.act(MatchAction.Vowel) },
                         enabled = LetterRules.canPickVowel(s.letters, s.rules.enforceLetterRule),
                         modifier = Modifier.weight(1f),
+                        contentPadding = PairedButtonPadding,
                     ) { Text("Vowel") }
                     FilledTonalButton(
                         onClick = { session.act(MatchAction.Consonant) },
                         enabled = LetterRules.canPickConsonant(s.letters, s.rules.enforceLetterRule),
                         modifier = Modifier.weight(1f),
+                        contentPadding = PairedButtonPadding,
                     ) { Text("Consonant") }
                 }
             }

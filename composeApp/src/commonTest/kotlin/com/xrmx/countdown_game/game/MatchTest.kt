@@ -327,4 +327,74 @@ class MatchTest {
         assertEquals(MatchSession.MAX_NAME, host.state.value!!.names[1].length)
         host.close()
     }
+
+    @Test
+    fun matchCarriesOnAfterTheConnectionDrops() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val (hostLink, guestLink) = LoopbackLink.pair()
+        val host = MatchSession.host(hostLink, RunningOrder.parse("LC"), MatchRules(clockSeconds = null), "Ann", dictionary, dispatcher, dispatcher, Random(2))
+        val guest = MatchSession.guest(guestLink, "Bob", dispatcher)
+        advanceUntilIdle()
+        repeat(4) { host.act(MatchAction.Vowel) }
+        repeat(5) { host.act(MatchAction.Consonant) }
+        advanceUntilIdle()
+        val matchId = guest.state.value!!.matchId
+        assertTrue(matchId.isNotEmpty())
+
+        // Bluetooth drops: both phones notice, and the guest declares while out of touch.
+        hostLink.close()
+        advanceUntilIdle()
+        assertFalse(host.connected.value)
+        assertFalse(guest.connected.value)
+        guest.act(MatchAction.Declare("RAT"))
+        advanceUntilIdle()
+
+        val (hostLink2, guestLink2) = LoopbackLink.pair()
+        host.attach(hostLink2)
+        guest.attach(guestLink2)
+        advanceUntilIdle()
+        assertTrue(host.connected.value)
+        assertTrue(guest.connected.value)
+        // The declaration made while disconnected arrived, and the game is the same one.
+        assertEquals("RAT", host.state.value!!.answers[1])
+        assertEquals(matchId, host.state.value!!.matchId)
+        assertEquals(host.state.value!!.letters, guest.state.value!!.letters)
+
+        host.act(MatchAction.Declare(""))
+        advanceUntilIdle()
+        assertEquals(MatchStage.Revealed, guest.state.value!!.stage)
+        host.close()
+        guest.close()
+    }
+
+    @Test
+    fun anotherPhoneCantTakeOverAGameInProgress() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val (hostLink, guestLink) = LoopbackLink.pair()
+        val host = MatchSession.host(hostLink, RunningOrder.parse("LC"), MatchRules(clockSeconds = null), "Ann", dictionary, dispatcher, dispatcher)
+        val guest = MatchSession.guest(guestLink, "Bob", dispatcher)
+        advanceUntilIdle()
+        hostLink.close()
+        advanceUntilIdle()
+
+        val (hostLink2, intruderLink) = LoopbackLink.pair()
+        host.attach(hostLink2)
+        val intruder = MatchSession.guest(intruderLink, "Eve", dispatcher)
+        advanceUntilIdle()
+        assertFalse(host.connected.value)
+        assertNull(intruder.state.value)
+        assertNotNull(intruder.error.value)
+        assertEquals(listOf("Ann", "Bob"), host.state.value!!.names)
+        host.close()
+        guest.close()
+        intruder.close()
+    }
+
+    @Test
+    fun helloCarriesTheMatchId() {
+        val hello = MatchMessage.Hello(MatchCodec.VERSION, "Bob", "abc123")
+        assertEquals(hello, MatchCodec.decode(MatchCodec.encode(hello)))
+        // A guest joining for the first time, or an older app, sends no match id.
+        assertEquals("", (MatchCodec.decode("HELLO\nversion=1\nname=Bob") as MatchMessage.Hello).match)
+    }
 }

@@ -288,7 +288,10 @@ private fun LettersResults(check: WordCheck?, solution: LettersSolution?) {
             containerColor = MaterialTheme.colorScheme.secondaryContainer,
             contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
         ) {
-            solution.nineLetterWords.forEach { LetterRow(it, highlight = true) }
+            solution.nineLetterWords.forEach {
+                LetterRow(it, highlight = true)
+                MeaningButton(it)
+            }
         }
     }
 
@@ -303,6 +306,15 @@ private fun LettersResults(check: WordCheck?, solution: LettersSolution?) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun WordGroups(words: List<String>) {
+    var lookup by remember { mutableStateOf<String?>(null) }
+    if (words.isNotEmpty()) {
+        Text(
+            "Tap a word to see what it means.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    lookup?.let { WordMeaningDialog(it, onDismiss = { lookup = null }) }
     words.groupBy { it.length }.forEach { (length, group) ->
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
@@ -313,6 +325,7 @@ fun WordGroups(words: List<String>) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 group.forEach { word ->
                     Surface(
+                        onClick = { lookup = word },
                         shape = RoundedCornerShape(8.dp),
                         color = MaterialTheme.colorScheme.surfaceContainerHighest,
                     ) {

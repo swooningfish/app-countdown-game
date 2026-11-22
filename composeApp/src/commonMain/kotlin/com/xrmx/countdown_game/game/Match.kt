@@ -92,6 +92,8 @@ data class MatchState(
     val notice: String? = null,
     /** The player the notice is for, or -1 for both. */
     val noticeFor: Int = -1,
+    /** Identifies this game, so the guest can come back to it after a dropped connection. */
+    val matchId: String = "",
 ) {
     val round: RoundType? get() = rounds.getOrNull(roundIndex)
 
@@ -144,11 +146,12 @@ class MatchEngine(
     names: List<String>,
     private val dictionary: WordDictionary,
     private val random: Random = Random.Default,
+    matchId: String = "",
 ) {
     private val bag = LetterBag(random)
     private val conundrums = ConundrumGenerator(dictionary, random)
 
-    var state = MatchState(RunningOrder.normalise(rounds), rules, names)
+    var state = MatchState(RunningOrder.normalise(rounds), rules, names, matchId = matchId)
         private set
 
     /** Applies [action] from [player] if it is allowed right now. Returns whether anything changed. */
@@ -334,6 +337,7 @@ class MatchEngine(
                 roundIndex = next,
                 clock = s.clock,
                 history = s.history,
+                matchId = s.matchId,
             )
         }
     }

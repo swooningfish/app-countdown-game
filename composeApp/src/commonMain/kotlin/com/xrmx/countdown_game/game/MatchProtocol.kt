@@ -2,8 +2,11 @@ package com.xrmx.countdown_game.game
 
 /** Messages sent between the two phones in a two-player game. */
 sealed interface MatchMessage {
-    /** The guest's first message after connecting. */
-    data class Hello(val version: Int, val name: String) : MatchMessage
+    /**
+     * The guest's first message after connecting. [match] is the id of the game it is coming back
+     * to after a dropped connection, or empty when joining for the first time.
+     */
+    data class Hello(val version: Int, val name: String, val match: String = "") : MatchMessage
 
     /** The host sends the whole game state after every change. */
     data class State(val state: MatchState) : MatchMessage
@@ -23,7 +26,7 @@ object MatchCodec {
     const val VERSION = 1
 
     fun encode(message: MatchMessage): String = when (message) {
-        is MatchMessage.Hello -> lines("HELLO", "version" to message.version.toString(), "name" to message.name)
+        is MatchMessage.Hello -> lines("HELLO", "version" to message.version.toString(), "name" to message.name, "match" to message.match)
         is MatchMessage.Error -> lines("ERROR", "message" to message.message)
         is MatchMessage.Action -> lines("ACTION", *encodeAction(message.action).toTypedArray())
         is MatchMessage.State -> lines("STATE", *encodeState(message.state).toTypedArray())
@@ -37,7 +40,7 @@ object MatchCodec {
             if (eq < 0) null else line.substring(0, eq) to unescape(line.substring(eq + 1))
         }.toMap()
         when (all.first()) {
-            "HELLO" -> MatchMessage.Hello(values.getValue("version").toInt(), values["name"].orEmpty())
+            "HELLO" -> MatchMessage.Hello(values.getValue("version").toInt(), values["name"].orEmpty(), values["match"].orEmpty())
             "ERROR" -> MatchMessage.Error(values["message"].orEmpty())
             "ACTION" -> decodeAction(values)?.let { MatchMessage.Action(it) }
             "STATE" -> MatchMessage.State(decodeState(values))
@@ -69,6 +72,7 @@ object MatchCodec {
     }
 
     private fun encodeState(s: MatchState): List<Pair<String, String>> = buildList {
+        add("match" to s.matchId)
         add("rounds" to RunningOrder.encode(s.rounds))
         add("clockSeconds" to (s.rules.clockSeconds?.toString() ?: "off"))
         add("letterRule" to s.rules.enforceLetterRule.toString())
@@ -127,6 +131,7 @@ object MatchCodec {
             },
             notice = v["notice"],
             noticeFor = v["noticeFor"]?.toInt() ?: -1,
+            matchId = v["match"].orEmpty(),
         )
     }
 

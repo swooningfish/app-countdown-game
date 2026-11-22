@@ -84,6 +84,7 @@ fun ConundrumScreen(
                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                 ) {
                     LetterRow(answer, highlight = true)
+                    MeaningButton(answer)
                 }
                 NewConundrumButton(enabled = generator != null) { generator?.let { game.start(it, settings.activeClockSeconds) } }
             }

@@ -82,7 +82,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.withContext
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
@@ -100,6 +104,20 @@ class TwoPlayerState(
     var hosts by mutableStateOf<List<FoundHost>>(emptyList())
     var connectingTo by mutableStateOf<FoundHost?>(null)
     var problem by mutableStateOf<String?>(null)
+
+    /** True while trying to get back in touch with the other phone after the connection dropped. */
+    var reconnecting by mutableStateOf(false)
+        private set
+
+    /** Set after trying to reconnect for [RECONNECT_TIMEOUT_MS] without success. */
+    var reconnectFailed by mutableStateOf(false)
+        private set
+
+    /** How to reach the other phone again: the name this phone hosts under, or the host it joined. */
+    private var hostedAs: String? = null
+    private var joined: FoundHost? = null
+    private var watchJob: Job? = null
+    private var reconnectJob: Job? = null
 
     /** What this player is typing in the current round. */
     var input by mutableStateOf("")
@@ -138,8 +156,12 @@ class TwoPlayerState(
         job = scope.launch {
             try {
                 val link = games.host(name)
-                session = start(link)
+                val started = start(link)
+                session = started
+                hostedAs = name
+                joined = null
                 step = TwoPlayerStep.Match
+                watch(games, started)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -173,8 +195,12 @@ class TwoPlayerState(
         job = scope.launch {
             try {
                 val link = games.join(host)
-                session = MatchSession.guest(link, name)
+                val started = MatchSession.guest(link, name)
+                session = started
+                joined = host
+                hostedAs = null
                 step = TwoPlayerStep.Match
+                watch(games, started)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -185,8 +211,77 @@ class TwoPlayerState(
         }
     }
 
+    /** Reconnects whenever the connection drops, unless the game is over or can't go on. */
+    private fun watch(games: BluetoothGames, s: MatchSession) {
+        watchJob?.cancel()
+        watchJob = scope.launch {
+            s.connected.collect { ok ->
+                if (!ok && s.error.value == null && s.state.value?.stage != MatchStage.Finished) {
+                    reconnect(games, s)
+                }
+            }
+        }
+    }
+
+    /**
+     * Tries to get back in touch with the other phone: the host advertises the game again, and the
+     * guest looks for the same host and joins it. Gives up after [RECONNECT_TIMEOUT_MS].
+     */
+    private suspend fun reconnect(games: BluetoothGames, s: MatchSession) {
+        reconnecting = true
+        reconnectFailed = false
+        try {
+            val back = withTimeoutOrNull(RECONNECT_TIMEOUT_MS) {
+                while (true) {
+                    val link = try {
+                        hostedAs?.let { games.host(it) } ?: joined?.let { rejoin(games, it) } ?: return@withTimeoutOrNull false
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        // Bluetooth may be off for a moment, or the other phone not back yet.
+                        delay(RETRY_DELAY_MS)
+                        continue
+                    }
+                    s.attach(link)
+                    // The host is only back once the guest says hello; give up on a phone that doesn't.
+                    if (withTimeoutOrNull(HELLO_TIMEOUT_MS) { s.connected.first { it } } != null) return@withTimeoutOrNull true
+                }
+                @Suppress("UNREACHABLE_CODE")
+                false
+            }
+            reconnectFailed = back != true
+        } finally {
+            reconnecting = false
+        }
+    }
+
+    /** Finds the host this phone joined before, by its Bluetooth id or else its name, and joins it again. */
+    private suspend fun rejoin(games: BluetoothGames, host: FoundHost): com.xrmx.countdown_game.game.MatchLink {
+        val found = games.scan()
+            .mapNotNull { list -> list.firstOrNull { it.id == host.id } ?: list.firstOrNull { it.name == host.name } }
+            .first()
+        joined = found
+        return games.join(found)
+    }
+
+    /** Tries to reconnect again after giving up. */
+    fun retryReconnect() {
+        val s = session ?: return
+        val games = games ?: return
+        reconnectJob?.cancel()
+        reconnectJob = scope.launch { reconnect(games, s) }
+    }
+
     fun leave() {
         cancelJob()
+        watchJob?.cancel()
+        watchJob = null
+        reconnectJob?.cancel()
+        reconnectJob = null
+        reconnecting = false
+        reconnectFailed = false
+        hostedAs = null
+        joined = null
         session?.close()
         session = null
         hosts = emptyList()
@@ -198,6 +293,13 @@ class TwoPlayerState(
     private fun cancelJob() {
         job?.cancel()
         job = null
+    }
+
+    companion object {
+        /** How long to keep trying to reconnect before asking the player. */
+        const val RECONNECT_TIMEOUT_MS = 60_000L
+        private const val RETRY_DELAY_MS = 2_000L
+        private const val HELLO_TIMEOUT_MS = 10_000L
     }
 
     /** Ends any game and stops all background work. Call when the app is closing. */
@@ -423,8 +525,8 @@ fun MatchView(session: MatchSession, state: TwoPlayerState, dictionary: WordDict
             SectionCard(title = "Starting the game…") {
                 if (connected && error == null) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 3.dp)
                 error?.let { Notice(Icons.Filled.Warning, it) }
-                if (!connected) Notice(Icons.Filled.Warning, "The connection was lost.")
-                LeaveButton(state)
+                if (!connected) ConnectionLost(if (me == 0) "the other phone" else "the host", state, canRetry = error == null)
+                else LeaveButton(state)
             }
             return@ScreenColumn
         }
@@ -432,8 +534,7 @@ fun MatchView(session: MatchSession, state: TwoPlayerState, dictionary: WordDict
         Scoreboard(s, me)
         error?.let { Notice(Icons.Filled.Warning, it) }
         if (!connected && s.stage != MatchStage.Finished) {
-            Notice(Icons.Filled.Warning, "The connection to ${s.names[s.opponent(me)]} was lost.")
-            LeaveButton(state)
+            ConnectionLost(s.names[s.opponent(me)], state, canRetry = error == null)
         }
         s.notice?.takeIf { s.noticeFor == me || s.noticeFor == -1 }?.let { Notice(Icons.Filled.Warning, it) }
         when (s.stage) {
@@ -443,6 +544,26 @@ fun MatchView(session: MatchSession, state: TwoPlayerState, dictionary: WordDict
             MatchStage.Finished -> FinishedView(s, me, state)
         }
     }
+}
+
+/** Shown while the other phone can't be reached: reconnecting, or a choice once that has failed. */
+@Composable
+private fun ConnectionLost(opponent: String, state: TwoPlayerState, canRetry: Boolean) {
+    if (state.reconnecting) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+            Text(
+                "Lost touch with $opponent. Reconnecting… Keep both phones close with Bluetooth on.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    } else {
+        Notice(Icons.Filled.Warning, "The connection to $opponent was lost.")
+        if (canRetry && state.reconnectFailed) {
+            Button(onClick = state::retryReconnect, modifier = Modifier.fillMaxWidth()) { Text("Try again") }
+        }
+    }
+    LeaveButton(state)
 }
 
 @Composable
@@ -677,7 +798,10 @@ private fun RevealedView(s: MatchState, me: Int, session: MatchSession, dictiona
             containerColor = MaterialTheme.colorScheme.secondaryContainer,
             contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
         ) {
-            s.solutions.forEach { LetterRow(it, highlight = true) }
+            s.solutions.forEach {
+                LetterRow(it, highlight = true)
+                MeaningButton(it)
+            }
         }
         null -> Unit
     }

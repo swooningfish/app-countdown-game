@@ -39,6 +39,7 @@ A Kotlin Multiplatform app for **Android and iOS**, built with Compose Multiplat
   - your score (1 point per letter, **18 for a nine-letter word**),
   - every **nine-letter word** if one exists,
   - the **top 20 longest words**, not counting the one you entered.
+  - **what the words mean:** tap any suggested word, nine-letter word or conundrum answer to see its definition. Definitions come from the free [Dictionary API](https://dictionaryapi.dev/), with a link to Wiktionary for anything it doesn't know.
 
 ### Numbers round
 - **Turn over cards from the board**, laid out like the studio: four large numbers on the top row, and two each of 1–10 face down in rows of 6, 7 and 7.
@@ -86,6 +87,7 @@ Play a friend, each on your own phone. One phone hosts and the other joins over 
   - Numbers: the answer closer to the target scores, as long as it's within 10. If both are equally close, both score.
 - **Conundrum:** either player can ask for one from the word list. If you're watching the show, you can **type in the conundrum** it used. The first right answer scores 10. A wrong answer means you can't try again.
 - The host's settings (clock, letters rule, target difficulty, nasty large numbers) apply to both players, and the host's word list judges the answers.
+- **Dropped connection:** if Bluetooth drops mid-game, both phones reconnect automatically and carry on where they left off. Keep the phones close with Bluetooth on. After a minute you can try again or leave. Only the same phone can rejoin a game.
 - Your name is saved for next time.
 
 ### Settings

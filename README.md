@@ -190,6 +190,16 @@ Then:
 python -I scripts/build_wordlist.py path/to/scowl.txt
 ```
 
+## Roadmap
+
+### Two-player game
+Play a full game against a friend, with scores kept for each player.
+
+- **Suggested running order:** the app proposes a default set of rounds, like a full show: letters and numbers rounds (10 letters and 4 numbers in the full format), finishing with a conundrum. You can change the order or the number of rounds before starting.
+- **Letters and numbers rounds:** players take turns choosing the vowels/consonants and the large/small numbers, as contestants do on the show. Both play the same selection against the same clock. The results show both answers side by side and award points as on the show (if both have equal words, both score).
+- **Conundrum at the end:** the app suggests one from the word list, or you can type in a known conundrum (for example, one from a real episode). The first player to buzz in with the right answer scores 10.
+- **Dual mode over Bluetooth:** each player uses their own phone. One device hosts the game and the other joins over Bluetooth. Letters, numbers, the clock, answers and scores stay in sync on both. Bluetooth Low Energy will be used so an Android phone and an iPhone can play each other.
+
 ## Credits
 
 - Word list: SCOWL/ESDB © Kevin Atkinson. See [third_party/SCOWL-LICENSE.txt](third_party/SCOWL-LICENSE.txt).

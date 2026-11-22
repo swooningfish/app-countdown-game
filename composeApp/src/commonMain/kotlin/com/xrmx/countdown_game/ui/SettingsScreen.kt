@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.Info
@@ -42,6 +44,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -215,6 +218,23 @@ fun SettingsScreen(
             DetailRow("App ID", platformAppId())
             DetailRow("Running on", platformDescription())
             DetailRow("Word list", wordList?.let { "${it.wordCount} words" } ?: "Loading…")
+            val uriHandler = LocalUriHandler.current
+            OutlinedButton(
+                onClick = { runCatching { uriHandler.openUri(AppInfo.SOURCE_URL) } },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Icon(Icons.Filled.Code, null, Modifier.size(ButtonDefaults.IconSize))
+                Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                Text("Source code on GitHub")
+                Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Opens in your browser", modifier = Modifier.size(16.dp))
+            }
+            Text(
+                AppInfo.SOURCE_URL.removePrefix("https://"),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+            )
             HorizontalDivider()
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Filled.Info, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)

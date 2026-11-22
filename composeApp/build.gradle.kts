@@ -11,6 +11,7 @@ val appVersionCode = (
     ).toInt()
 val appAndroidId = providers.gradleProperty("app.androidId").get()
 val appIosBundleId = providers.gradleProperty("app.iosBundleId").get()
+val appSourceUrl = providers.gradleProperty("app.sourceUrl").get()
 
 /** Writes AppInfo.kt so the app can show its own name, version and IDs. */
 abstract class GenerateAppInfo : DefaultTask() {
@@ -33,6 +34,7 @@ abstract class GenerateAppInfo : DefaultTask() {
             |    const val VERSION_CODE = ${v["versionCode"]}
             |    const val ANDROID_ID = "${v["androidId"]}"
             |    const val IOS_BUNDLE_ID = "${v["iosBundleId"]}"
+            |    const val SOURCE_URL = "${v["sourceUrl"]}"
             |}
             |""".trimMargin(),
         )
@@ -47,6 +49,7 @@ val generateAppInfo = tasks.register<GenerateAppInfo>("generateAppInfo") {
             "versionCode" to appVersionCode.toString(),
             "androidId" to appAndroidId,
             "iosBundleId" to appIosBundleId,
+            "sourceUrl" to appSourceUrl,
         ),
     )
     outputDir.set(layout.buildDirectory.dir("generated/appInfo/commonMain/kotlin"))

@@ -75,7 +75,7 @@ fun main(args: Array<String>) {
         tab = Tab.Conundrum
         conundrum.start(ConundrumGenerator(dictionary, Random(7)), clockSeconds = 30, startedAt = startedSecondsAgo(8))
     }
-    shot("settings", height = 3600) {
+    shot("settings", height = 4400) {
         showSettings = true
     }
 }

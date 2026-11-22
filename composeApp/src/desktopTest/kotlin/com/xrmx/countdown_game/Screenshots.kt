@@ -74,14 +74,14 @@ fun main(args: Array<String>) {
     shot("numbers-playing") {
         tab = Tab.Numbers
         numbers.setOwnNumbers(listOf(100, 75, 50, 25, 6, 3))
-        numbers.target = 952
+        numbers.setOwnTarget(952)
         numbers.start(clockSeconds = 30, startedAt = startedSecondsAgo(19))
         numbers.working = "(100 + 6) × 3"
     }
     shot("numbers-results") {
         tab = Tab.Numbers
         numbers.setOwnNumbers(listOf(100, 75, 50, 25, 6, 3))
-        numbers.target = 952
+        numbers.setOwnTarget(952)
         numbers.start(clockSeconds = null)
         numbers.working = "(100 + 6) × 75 ÷ 25 × 3"
         runBlocking { numbers.finish(session) }

@@ -197,7 +197,7 @@ fun NumbersScreen(game: NumbersGame, settings: Settings, session: Session, modif
             initial = game.target,
             onDismiss = { showTargetDialog = false },
             onConfirm = {
-                game.target = it
+                game.setOwnTarget(it)
                 showTargetDialog = false
             },
         )

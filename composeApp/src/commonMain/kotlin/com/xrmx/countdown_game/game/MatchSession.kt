@@ -112,12 +112,13 @@ class MatchSession private constructor(
                     is MatchMessage.Hello -> {
                         if (message.version != MatchCodec.VERSION) {
                             val problem = "The other phone has a different version of the app. Update both phones to the same version."
-                            link.send(MatchCodec.encode(MatchMessage.Error(problem)))
                             _error.value = problem
+                            // The guest may already have gone, so a failed send mustn't end the app.
+                            runCatching { link.send(MatchCodec.encode(MatchMessage.Error(problem))) }
                             break
                         }
                         if (engine == null) {
-                            val guestName = message.name.trim().ifEmpty { "Player 2" }
+                            val guestName = message.name.trim().take(MAX_NAME).ifEmpty { "Player 2" }
                             engine = MatchEngine(rounds, rules, listOf(name, guestName), dictionary, random)
                         }
                         publish()
@@ -157,7 +158,7 @@ class MatchSession private constructor(
     private fun publish() {
         val s = engine?.state ?: return
         _state.value = s
-        outgoing.trySend(MatchCodec.encode(MatchMessage.State(s)))
+        outgoing.trySend(MatchCodec.encode(MatchMessage.State(s.forGuest())))
         // A backstop for the clock: if an answer never arrives, end the round a little after time is up.
         val seconds = s.rules.clockSeconds
         if (s.stage == MatchStage.Playing && seconds != null && s.clock != timedClock) {
@@ -165,7 +166,8 @@ class MatchSession private constructor(
             timer?.cancel()
             val clock = s.clock
             timer = scope.launch {
-                delay(seconds * 1000L + CLOCK_GRACE_MS)
+                val grace = if (s.round == RoundType.Conundrum) CONUNDRUM_GRACE_MS else CLOCK_GRACE_MS
+                delay(seconds * 1000L + grace)
                 if (engine?.state?.let { it.clock == clock && it.stage == MatchStage.Playing } == true) {
                     applyOnHost(0, MatchAction.TimeUp)
                 }
@@ -173,13 +175,24 @@ class MatchSession private constructor(
         }
     }
 
+    /** Closes the link too, so a half-dead connection doesn't leave the other phone waiting. */
     private fun disconnected() {
         _connected.value = false
+        link.close()
     }
 
     companion object {
         /** How long after the clock runs out the host waits for the guest's answer. */
         const val CLOCK_GRACE_MS = 3_000L
+
+        /**
+         * How long after the clock runs out a conundrum buzz may still arrive. Only enough to cover
+         * the Bluetooth delay, so nobody can answer once their clock shows time is up.
+         */
+        const val CONUNDRUM_GRACE_MS = 750L
+
+        /** Longest player name accepted from the other phone. */
+        const val MAX_NAME = 20
 
         fun host(
             link: MatchLink,

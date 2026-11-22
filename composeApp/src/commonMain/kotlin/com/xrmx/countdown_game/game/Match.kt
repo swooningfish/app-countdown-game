@@ -100,6 +100,15 @@ data class MatchState(
 
     fun opponent(player: Int): Int = 1 - player
 
+    /**
+     * What the guest's phone may see. While a round is being played, the conundrum's answer and
+     * the host's declared answer are hidden, so they can't be read off the Bluetooth link.
+     */
+    fun forGuest(): MatchState = if (stage != MatchStage.Playing) this else copy(
+        solutions = emptyList(),
+        answers = listOf(answers[0]?.let { "" }, answers[1]),
+    )
+
     /** 0 or 1 for the player in the lead, or null when level. */
     val leader: Int? get() = when {
         scores[0] > scores[1] -> 0

@@ -104,6 +104,9 @@ class TwoPlayerState(
     var input by mutableStateOf("")
     private var inputRound by mutableIntStateOf(-1)
     private var clockNumber = -1
+
+    /** The clock number whose time has run out on this phone. */
+    var timeUpClock by mutableIntStateOf(-1)
     private var clockMark: TimeMark? = null
 
     private var job: Job? = null
@@ -544,7 +547,8 @@ private fun PlayingView(s: MatchState, me: Int, session: MatchSession, state: Tw
     val opponentName = s.names[opponent]
     val myAnswer = s.answers[me]
     val conundrum = s.round == RoundType.Conundrum
-    val canAnswer = if (conundrum) !s.lockedOut[me] else myAnswer == null
+    // On the show nobody can buzz in once the conundrum clock has stopped.
+    val canAnswer = if (conundrum) !s.lockedOut[me] && state.timeUpClock != s.clock else myAnswer == null
     val declare = { if (canAnswer) session.act(MatchAction.Declare(state.input)) }
     val clockStart = s.rules.clockSeconds?.let { state.clockStart(s.clock) }
 
@@ -574,7 +578,10 @@ private fun PlayingView(s: MatchState, me: Int, session: MatchSession, state: Tw
                 start = clockStart,
                 seconds = s.rules.clockSeconds ?: Settings.DEFAULT_CLOCK_SECONDS,
                 // When time is up, declare whatever has been typed. A conundrum needs a buzz, so it just ends.
-                onTimeUp = { if (!conundrum && myAnswer == null) session.act(MatchAction.Declare(state.input)) },
+                onTimeUp = {
+                    state.timeUpClock = s.clock
+                    if (!conundrum && myAnswer == null) session.act(MatchAction.Declare(state.input))
+                },
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             )
         }
@@ -599,6 +606,8 @@ private fun PlayingView(s: MatchState, me: Int, session: MatchSession, state: Tw
                 Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                 Text(if (conundrum) "Buzz in" else "Declare")
             }
+        } else if (conundrum && !s.lockedOut[me]) {
+            Text("Time's up. Revealing the answer…", style = MaterialTheme.typography.bodyLarge)
         } else if (conundrum) {
             Notice(Icons.Filled.Cancel, "${myAnswer.orEmpty().ifEmpty { "That" }} isn't right. $opponentName can still answer.")
         } else {

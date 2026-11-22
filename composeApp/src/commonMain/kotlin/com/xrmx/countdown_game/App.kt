@@ -91,6 +91,8 @@ fun App(
 ) {
     val persist = preloadedDictionary == null
     LaunchedEffect(Unit) {
+        // Already loaded when the state outlived a rebuilt screen (e.g. after turning the phone).
+        if (state.dictionary != null) return@LaunchedEffect
         if (!persist) {
             state.dictionary = preloadedDictionary
             state.wordList = WordListInfo(true, WordListInfo.BUILT_IN_SOURCE, preloadedDictionary!!.size, null)

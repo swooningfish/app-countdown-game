@@ -1,8 +1,12 @@
 package com.xrmx.countdown_game.game
 
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.random.Random
 import kotlin.test.Test
@@ -220,5 +224,107 @@ class MatchTest {
         assertEquals(listOf("No answer", "No answer"), guest.state.value!!.verdicts)
         host.close()
         guest.close()
+    }
+
+    /** A link whose sends always fail, as when a Bluetooth notification times out. */
+    private class FailingLink : MatchLink {
+        val inbox = Channel<String>(Channel.UNLIMITED)
+        var closed = false
+        override val incoming: ReceiveChannel<String> get() = inbox
+        override suspend fun send(message: String) = error("Send failed")
+        override fun close() {
+            closed = true
+            inbox.close()
+        }
+    }
+
+    @Test
+    fun guestIsNotSentAnswersWhileTheRoundIsPlayed() {
+        val e = engine("C")
+        e.apply(0, MatchAction.KnownConundrum("TOINESRAS"))
+        e.apply(0, MatchAction.Declare("RATIONS"))
+        val playing = e.state.forGuest()
+        assertEquals(emptyList(), playing.solutions)
+        assertEquals(listOf("", null), playing.answers)
+        assertTrue(playing.lockedOut[0])
+
+        e.apply(1, MatchAction.Declare("SENORITAS"))
+        val revealed = e.state.forGuest()
+        assertEquals(MatchStage.Revealed, revealed.stage)
+        assertEquals(listOf("SENORITAS"), revealed.solutions)
+        assertEquals(listOf("RATIONS", "SENORITAS"), revealed.answers)
+    }
+
+    @Test
+    fun conundrumCantBeAnsweredOnceTheClockHasRunOut() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val (hostLink, guestLink) = LoopbackLink.pair()
+        val host = MatchSession.host(hostLink, RunningOrder.parse("C"), MatchRules(clockSeconds = 30), "Ann", dictionary, dispatcher, dispatcher)
+        val guest = MatchSession.guest(guestLink, "Bob", dispatcher)
+        advanceUntilIdle()
+        host.act(MatchAction.KnownConundrum("TOINESRAS"))
+        runCurrent()
+        advanceTimeBy(30_000 + MatchSession.CONUNDRUM_GRACE_MS + 1)
+        runCurrent()
+        assertEquals(MatchStage.Revealed, host.state.value!!.stage)
+
+        guest.act(MatchAction.Declare("SENORITAS"))
+        runCurrent()
+        assertEquals(listOf(0, 0), host.state.value!!.scores)
+        host.close()
+        guest.close()
+    }
+
+    @Test
+    fun lettersAnswersStillArriveDuringTheGracePeriod() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val (hostLink, guestLink) = LoopbackLink.pair()
+        val host = MatchSession.host(hostLink, RunningOrder.parse("LC"), MatchRules(clockSeconds = 30), "Ann", dictionary, dispatcher, dispatcher)
+        val guest = MatchSession.guest(guestLink, "Bob", dispatcher)
+        advanceUntilIdle()
+        repeat(4) { host.act(MatchAction.Vowel) }
+        repeat(5) { host.act(MatchAction.Consonant) }
+        runCurrent()
+        advanceTimeBy(30_000 + MatchSession.CONUNDRUM_GRACE_MS + 1)
+        runCurrent()
+        assertEquals(MatchStage.Playing, host.state.value!!.stage)
+        guest.act(MatchAction.Declare(""))
+        runCurrent()
+        assertEquals("", host.state.value!!.answers[1])
+        host.close()
+        guest.close()
+    }
+
+    @Test
+    fun failedSendClosesTheLink() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val link = FailingLink()
+        val guest = MatchSession.guest(link, "Bob", dispatcher)
+        advanceUntilIdle()
+        assertFalse(guest.connected.value)
+        assertTrue(link.closed)
+    }
+
+    @Test
+    fun differentAppVersionIsReportedWithoutCrashing() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val link = FailingLink()
+        val host = MatchSession.host(link, RunningOrder.parse("C"), MatchRules(), "Ann", dictionary, dispatcher, dispatcher)
+        link.inbox.send(MatchCodec.encode(MatchMessage.Hello(MatchCodec.VERSION + 1, "Bob")))
+        advanceUntilIdle()
+        assertNotNull(host.error.value)
+        assertFalse(host.connected.value)
+        assertTrue(link.closed)
+    }
+
+    @Test
+    fun longGuestNamesAreShortened() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val (hostLink, guestLink) = LoopbackLink.pair()
+        val host = MatchSession.host(hostLink, RunningOrder.parse("C"), MatchRules(), "Ann", dictionary, dispatcher, dispatcher)
+        guestLink.send(MatchCodec.encode(MatchMessage.Hello(MatchCodec.VERSION, "B".repeat(500))))
+        advanceUntilIdle()
+        assertEquals(MatchSession.MAX_NAME, host.state.value!!.names[1].length)
+        host.close()
     }
 }

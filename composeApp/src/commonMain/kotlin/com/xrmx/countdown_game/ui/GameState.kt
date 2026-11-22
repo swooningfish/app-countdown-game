@@ -165,6 +165,7 @@ class NumbersGame {
     var numbers by mutableStateOf<List<Int>>(emptyList())
         private set
     var target by mutableStateOf<Int?>(null)
+        private set
     var generatingTarget by mutableStateOf(false)
         private set
     var phase by mutableStateOf(Phase.Picking)
@@ -185,12 +186,27 @@ class NumbersGame {
 
     val isFull: Boolean get() = numbers.size == NumberRules.COUNT
 
+    /** Bumped whenever the numbers or target change, so a target still being chosen for old numbers is dropped. */
+    private var targetRequest = 0
+
     /** Shuffles a fresh face-down board, using the nasty large numbers if asked. */
     fun resetBoard(settings: Settings) {
         board = NumberBoard(if (settings.nastyLargeNumbers) NumberRules.NASTY_LARGE else NumberRules.LARGE)
         picked = emptyList()
         numbers = emptyList()
         target = null
+        cancelTargetRequest()
+    }
+
+    private fun cancelTargetRequest() {
+        targetRequest++
+        generatingTarget = false
+    }
+
+    /** A target the player typed in, e.g. from an episode they are watching. */
+    fun setOwnTarget(value: Int) {
+        cancelTargetRequest()
+        target = value
     }
 
     fun isPicked(card: BoardCard): Boolean = card in picked
@@ -212,6 +228,7 @@ class NumbersGame {
     }
 
     fun setOwnNumbers(values: List<Int>) {
+        cancelTargetRequest()
         picked = emptyList()
         numbers = values
     }
@@ -219,12 +236,14 @@ class NumbersGame {
     /** Generates a target matching the difficulty setting (graded off the main thread). */
     suspend fun newTarget(difficulty: TargetDifficulty) {
         if (!isFull) return
+        val request = ++targetRequest
         generatingTarget = true
         val nums = numbers
         try {
-            target = withContext(Dispatchers.Default) { NumberRules.target(nums, difficulty) }
+            val chosen = withContext(Dispatchers.Default) { NumberRules.target(nums, difficulty) }
+            if (request == targetRequest) target = chosen
         } finally {
-            generatingTarget = false
+            if (request == targetRequest) generatingTarget = false
         }
     }
 

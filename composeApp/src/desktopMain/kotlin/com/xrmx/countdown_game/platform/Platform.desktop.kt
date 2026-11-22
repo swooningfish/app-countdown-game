@@ -42,3 +42,6 @@ actual fun rememberTextFilePicker(onPicked: (Result<String>?) -> Unit): () -> Un
 
 @Composable
 actual fun PlatformBackHandler(enabled: Boolean, onBack: () -> Unit) = Unit
+
+@Composable
+actual fun KeepScreenOn(enabled: Boolean) = Unit

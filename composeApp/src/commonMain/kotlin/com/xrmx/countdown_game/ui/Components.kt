@@ -39,12 +39,15 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.xrmx.countdown_game.game.NumberRules
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.min
@@ -135,7 +138,8 @@ fun NumberRow(
             text = n?.toString(),
             size = size,
             height = size * 0.8f,
-            highlight = n != null && n >= 25,
+            // The large numbers, including the nasty ones; a hand-entered 30 isn't one.
+            highlight = n != null && (n in NumberRules.LARGE || n in NumberRules.NASTY_LARGE),
             enabled = n != null && isTileEnabled(index),
             onClick = if (n != null && onTileClick != null) ({ onTileClick(index) }) else null,
             fontSizeFraction = 0.4f,
@@ -227,6 +231,9 @@ fun TargetDisplay(target: Int?, modifier: Modifier = Modifier) {
     }
 }
 
+/** Seconds at the end of the clock that are marked with a vibration. */
+private const val FINAL_SECONDS = 5
+
 /**
  * The 30-second clock: a hand sweeps from 12 to 6 o'clock while the elapsed time fills in behind it.
  */
@@ -240,10 +247,21 @@ fun CountdownClock(
 ) {
     val totalMs = seconds * 1000L
     val latestOnTimeUp by rememberUpdatedState(onTimeUp)
+    val haptics = LocalHapticFeedback.current
     var elapsedMs by remember(start) { mutableLongStateOf(start.elapsedNow().inWholeMilliseconds.coerceAtMost(totalMs)) }
     LaunchedEffect(start) {
+        // A light tap for each of the last few seconds, and a stronger one when time is up.
+        var lastTapped = ((totalMs - elapsedMs + 999) / 1000).toInt()
         while (true) {
             elapsedMs = start.elapsedNow().inWholeMilliseconds.coerceAtMost(totalMs)
+            val remaining = ((totalMs - elapsedMs + 999) / 1000).toInt()
+            if (remaining < lastTapped) {
+                lastTapped = remaining
+                when (remaining) {
+                    0 -> haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    in 1..FINAL_SECONDS -> haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                }
+            }
             if (elapsedMs >= totalMs) {
                 latestOnTimeUp()
                 break

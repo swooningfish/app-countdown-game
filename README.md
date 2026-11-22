@@ -32,7 +32,8 @@ A Kotlin Multiplatform app for **Android and iOS**, built with Compose Multiplat
 ### Letters round
 - Pick **Vowel** or **Consonant** one at a time. Letters are drawn from weighted piles, like on the show. You can also **type in** the nine letters from a real episode.
 - The show's rule of **at least 3 vowels and 4 consonants** is enforced. You can switch this off in Settings.
-- Find the longest word before the **clock** runs out. Tap the tiles or type your word.
+- Find the longest word before the **clock** runs out. Tap the tiles or type your word. Letters you've used are greyed out.
+- The phone gives a light buzz for each of the last 5 seconds, and the round ends on time even if you switch to another tab.
 - The results show:
   - whether your word is valid,
   - your score (1 point per letter, **18 for a nine-letter word**),
@@ -96,10 +97,10 @@ Play a friend, each on your own phone. One phone hosts and the other joins over 
   - **Upload** a text file from the device.
   - **Reset** to the built-in list at any time.
   - Imported lists are saved on the device.
-- **Score:** your running total, and a button to reset it.
+- **Score:** your running total, your average per round, your best word, how many numbers rounds you got spot on and how many conundrums you solved, with a button to reset them.
 - **About:** app name, version and build, app ID, device/OS and word list size.
 
-Settings and any imported word list are kept between launches.
+Settings, your score and any imported word list are kept between launches. A game in progress survives turning the phone.
 
 ## Countdown rules used
 

@@ -74,20 +74,71 @@ class Settings {
     }
 }
 
+/** The player's running score and a few records, kept between launches. */
 class Session {
     var score by mutableIntStateOf(0)
         private set
     var rounds by mutableIntStateOf(0)
         private set
 
-    fun record(points: Int) {
+    /** The longest valid word declared, or "" before the first one. */
+    var bestWord by mutableStateOf("")
+        private set
+    var numbersSpotOn by mutableIntStateOf(0)
+        private set
+    var conundrumsSolved by mutableIntStateOf(0)
+        private set
+
+    /** Average points per round, or null before the first round. */
+    val average: Double? get() = if (rounds == 0) null else score.toDouble() / rounds
+
+    private fun record(points: Int) {
         score += points
         rounds++
+    }
+
+    fun recordLetters(check: WordCheck) {
+        record(check.score)
+        if (check is WordCheck.Valid && check.word.length > bestWord.length) bestWord = check.word
+    }
+
+    fun recordNumbers(points: Int) {
+        record(points)
+        if (points == Scoring.numbers(0, 0)) numbersSpotOn++
+    }
+
+    fun recordConundrum(solved: Boolean) {
+        record(if (solved) Scoring.CONUNDRUM else 0)
+        if (solved) conundrumsSolved++
     }
 
     fun reset() {
         score = 0
         rounds = 0
+        bestWord = ""
+        numbersSpotOn = 0
+        conundrumsSolved = 0
+    }
+
+    /** Saved as simple key=value lines, like [Settings]. */
+    fun encode(): String = listOf(
+        "score=$score",
+        "rounds=$rounds",
+        "bestWord=$bestWord",
+        "numbersSpotOn=$numbersSpotOn",
+        "conundrumsSolved=$conundrumsSolved",
+    ).joinToString("\n")
+
+    fun decode(text: String) {
+        val values = text.lines().mapNotNull { line ->
+            line.split('=', limit = 2).takeIf { it.size == 2 }?.let { it[0].trim() to it[1].trim() }
+        }.toMap()
+        fun count(key: String) = values[key]?.toIntOrNull()?.takeIf { it >= 0 }
+        count("score")?.let { score = it }
+        count("rounds")?.let { rounds = it }
+        values["bestWord"]?.takeIf { w -> w.length <= LetterRules.TOTAL && w.all { it in 'A'..'Z' } }?.let { bestWord = it }
+        count("numbersSpotOn")?.let { numbersSpotOn = it }
+        count("conundrumsSolved")?.let { conundrumsSolved = it }
     }
 }
 
@@ -142,7 +193,7 @@ class LettersGame(private val bag: LetterBag = LetterBag()) {
         val result = dictionary.check(guess, letters)
         check = result
         solution = dictionary.solve(letters, guess)
-        session?.record(result.score)
+        session?.recordLetters(result)
         clockStart = null
         phase = Phase.Results
     }
@@ -271,7 +322,7 @@ class NumbersGame {
         val result = if (working.isBlank()) null else ExpressionEvaluator.evaluate(working, numbers)
         playerResult = result
         playerScore = (result as? ExpressionEvaluator.Result.Ok)?.let { Scoring.numbers(goal, it.value) } ?: 0
-        session?.record(playerScore)
+        session?.recordNumbers(playerScore)
         clockStart = null
         phase = Phase.Results
         val nums = numbers
@@ -320,7 +371,7 @@ class ConundrumGame {
     fun finish(session: Session?) {
         if (phase != Phase.Playing) return
         solved = guess.trim().equals(puzzle?.answer, ignoreCase = true)
-        session?.record(if (solved) Scoring.CONUNDRUM else 0)
+        session?.recordConundrum(solved)
         clockStart = null
         phase = Phase.Results
     }

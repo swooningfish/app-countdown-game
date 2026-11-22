@@ -26,6 +26,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
@@ -36,6 +38,7 @@ import com.xrmx.countdown_game.game.ConundrumGenerator
 import com.xrmx.countdown_game.game.WordDictionary
 import com.xrmx.countdown_game.game.WordListInfo
 import com.xrmx.countdown_game.platform.BluetoothGames
+import com.xrmx.countdown_game.platform.KeepScreenOn
 import com.xrmx.countdown_game.platform.PlatformBackHandler
 import com.xrmx.countdown_game.platform.bluetoothGames
 import com.xrmx.countdown_game.platform.readStoredText
@@ -52,9 +55,13 @@ import com.xrmx.countdown_game.ui.Settings
 import com.xrmx.countdown_game.ui.SettingsScreen
 import com.xrmx.countdown_game.ui.TwoPlayerScreen
 import com.xrmx.countdown_game.ui.TwoPlayerState
+import com.xrmx.countdown_game.ui.TwoPlayerStep
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.withContext
+import kotlin.time.TimeMark
 
 enum class Tab(val label: String, val icon: ImageVector) {
     Letters("Letters", Icons.Filled.Abc),
@@ -78,6 +85,7 @@ class AppState(bluetooth: BluetoothGames? = bluetoothGames()) {
 }
 
 private const val SETTINGS_FILE = "settings.properties"
+private const val SCORE_FILE = "score.properties"
 
 /**
  * @param preloadedDictionary skips loading saved settings and word lists (used for screenshots).
@@ -100,6 +108,8 @@ fun App(
         }
         withContext(Dispatchers.Default) { runCatching { readStoredText(SETTINGS_FILE) }.getOrNull() }
             ?.let { state.settings.decode(it) }
+        withContext(Dispatchers.Default) { runCatching { readStoredText(SCORE_FILE) }.getOrNull() }
+            ?.let { state.session.decode(it) }
         val loaded = WordListRepository.load()
         state.dictionary = loaded.dictionary
         state.wordList = loaded.info
@@ -110,6 +120,11 @@ fun App(
                 withContext(Dispatchers.Default) { runCatching { writeStoredText(SETTINGS_FILE, text) } }
             }
         }
+        LaunchedEffect(Unit) {
+            snapshotFlow { state.session.encode() }.drop(1).collect { text ->
+                withContext(Dispatchers.Default) { runCatching { writeStoredText(SCORE_FILE, text) } }
+            }
+        }
     }
 
     CountdownTheme(darkTheme) {
@@ -118,8 +133,24 @@ fun App(
         val dictionary = state.dictionary
         val generator = remember(dictionary) { dictionary?.let { ConundrumGenerator(it) } }
         val tab = state.tab
+        val scope = rememberCoroutineScope()
+
+        // Each round's clock keeps running if the player switches tab or opens Settings, so the
+        // round still finishes on time rather than when they come back.
+        WhenTimeIsUp(state.letters.clockStart, state.letters.clockLimit) {
+            dictionary?.let { state.letters.finish(it, session) }
+        }
+        WhenTimeIsUp(state.numbers.clockStart, state.numbers.clockLimit) {
+            // Launched apart from the effect, which ends as soon as the clock is cleared.
+            scope.launch { state.numbers.finish(session) }
+        }
+        WhenTimeIsUp(state.conundrum.clockStart, state.conundrum.clockLimit) {
+            state.conundrum.finish(session)
+        }
 
         PlatformBackHandler(enabled = state.showSettings) { state.showSettings = false }
+        // An auto-lock between rounds can suspend the app and drop the Bluetooth link.
+        KeepScreenOn(state.twoPlayer.step != TwoPlayerStep.Setup)
 
         Scaffold(
             topBar = {
@@ -184,5 +215,17 @@ fun App(
                 }
             }
         }
+    }
+}
+
+/** Calls [onTimeUp] once [seconds] have passed since [start], wherever the player is in the app. */
+@Composable
+private fun WhenTimeIsUp(start: TimeMark?, seconds: Int, onTimeUp: () -> Unit) {
+    val latest by rememberUpdatedState(onTimeUp)
+    LaunchedEffect(start, seconds) {
+        if (start == null) return@LaunchedEffect
+        val left = seconds * 1000L - start.elapsedNow().inWholeMilliseconds
+        if (left > 0) delay(left)
+        latest()
     }
 }

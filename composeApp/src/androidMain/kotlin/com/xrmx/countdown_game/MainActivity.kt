@@ -16,7 +16,7 @@ class AppStateHolder : ViewModel() {
     val state = AppState()
 
     override fun onCleared() {
-        state.twoPlayer.leave()
+        state.twoPlayer.dispose()
     }
 }
 

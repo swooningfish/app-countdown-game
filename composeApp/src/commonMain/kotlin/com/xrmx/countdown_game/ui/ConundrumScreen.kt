@@ -35,6 +35,9 @@ fun ConundrumScreen(
                 letters = game.puzzle?.scrambled.takeIf { game.phase != Phase.Picking } ?: "",
                 slots = LetterRules.TOTAL,
                 onTileClick = if (game.phase == Phase.Playing) game::appendFromTile else null,
+                isTileEnabled = { i ->
+                    game.phase != Phase.Playing || LetterRules.isTileFree(game.guess, game.puzzle?.scrambled.orEmpty(), i)
+                },
             )
         }
 

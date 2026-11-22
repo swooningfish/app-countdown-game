@@ -30,6 +30,7 @@ import platform.CoreBluetooth.CBCharacteristic
 import platform.CoreBluetooth.CBCharacteristicPropertyNotify
 import platform.CoreBluetooth.CBCharacteristicPropertyWrite
 import platform.CoreBluetooth.CBCharacteristicWriteWithResponse
+import platform.CoreBluetooth.CBCharacteristicWriteWithoutResponse
 import platform.CoreBluetooth.CBManager
 import platform.CoreBluetooth.CBManagerAuthorizationDenied
 import platform.CoreBluetooth.CBManagerAuthorizationRestricted
@@ -201,7 +202,11 @@ private class HostSide(private val name: String) : NSObject(), CBPeripheralManag
         val requests = didReceiveWriteRequests.filterIsInstance<CBATTRequest>()
         val first = requests.firstOrNull() ?: return
         val allowed = requests.all { it.central.identifier == guest?.identifier && it.characteristic.UUID == TO_HOST }
-        if (allowed) requests.forEach { r -> r.value?.let { link?.received(it.toByteArray()) } }
+        // A long write arrives as several requests with offsets: together they make one packet.
+        if (allowed) {
+            val packet = requests.sortedBy { it.offset.toLong() }.fold(ByteArray(0)) { acc, r -> acc + (r.value?.toByteArray() ?: ByteArray(0)) }
+            if (packet.isNotEmpty()) link?.received(packet)
+        }
         peripheral.respondToRequest(first, if (allowed) CBATTErrorSuccess else CBATTErrorWriteNotPermitted)
     }
 
@@ -269,7 +274,9 @@ private class GuestSide : NSObject(), CBCentralManagerDelegateProtocol, CBPeriph
         toHost = null
         val newLink = PacketLink(
             packetSize = {
-                (connecting?.maximumWriteValueLengthForType(CBCharacteristicWriteWithResponse)?.toInt() ?: DEFAULT_PACKET)
+                // The "without response" size fits in one ATT write (MTU - 3). The "with response" size can be
+                // 512, which would turn each packet into a long (prepared) write that the host would split up.
+                (connecting?.maximumWriteValueLengthForType(CBCharacteristicWriteWithoutResponse)?.toInt() ?: DEFAULT_PACKET)
                     .coerceAtLeast(DEFAULT_PACKET)
             },
             sendPacket = { write(it) },

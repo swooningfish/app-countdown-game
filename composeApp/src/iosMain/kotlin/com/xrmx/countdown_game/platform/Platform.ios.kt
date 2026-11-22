@@ -3,6 +3,7 @@
 package com.xrmx.countdown_game.platform
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -100,3 +101,11 @@ actual fun rememberTextFilePicker(onPicked: (Result<String>?) -> Unit): () -> Un
 
 @Composable
 actual fun PlatformBackHandler(enabled: Boolean, onBack: () -> Unit) = Unit
+
+@Composable
+actual fun KeepScreenOn(enabled: Boolean) {
+    DisposableEffect(enabled) {
+        UIApplication.sharedApplication.idleTimerDisabled = enabled
+        onDispose { UIApplication.sharedApplication.idleTimerDisabled = false }
+    }
+}

@@ -23,6 +23,7 @@ import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.pm.PackageManager
+import android.location.LocationManager
 import android.os.Build
 import android.os.ParcelUuid
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -48,6 +49,29 @@ private const val DEFAULT_PACKET = 20
 private const val WANTED_MTU = 247
 private const val CONNECT_TIMEOUT_MS = 20_000L
 private const val PACKET_TIMEOUT_MS = 5_000L
+
+/**
+ * State shared between the Bluetooth callbacks (on a binder thread) and the coroutines that send
+ * packets, so every field is volatile.
+ */
+private class HostConnection {
+    @Volatile var server: BluetoothGattServer? = null
+    @Volatile var guest: BluetoothDevice? = null
+    @Volatile var link: PacketLink? = null
+    @Volatile var packetSize = DEFAULT_PACKET
+    @Volatile var notifySent: CompletableDeferred<Boolean>? = null
+
+    /** Phones connected to the server, including any that never became the guest. */
+    val connected: MutableSet<BluetoothDevice> = java.util.Collections.synchronizedSet(mutableSetOf())
+}
+
+private class GuestConnection {
+    @Volatile var gatt: BluetoothGatt? = null
+    @Volatile var link: PacketLink? = null
+    @Volatile var toHost: BluetoothGattCharacteristic? = null
+    @Volatile var packetSize = DEFAULT_PACKET
+    @Volatile var writeDone: CompletableDeferred<Boolean>? = null
+}
 
 private fun bluetoothPermissions(): Array<String> = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
     arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_ADVERTISE)
@@ -91,16 +115,22 @@ private class AndroidBluetoothGames(private val context: Context) : BluetoothGam
         }
     }
 
+    @Suppress("DEPRECATION")
+    private fun locationEnabled(): Boolean {
+        val lm = context.getSystemService(LocationManager::class.java) ?: return true
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            lm.isLocationEnabled
+        } else {
+            lm.isProviderEnabled(LocationManager.GPS_PROVIDER) || lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+        }
+    }
+
     override suspend fun host(name: String): MatchLink {
         problem()?.let { error(it) }
         val adapter = adapter!!
         val advertiser = adapter.bluetoothLeAdvertiser ?: error("This phone can't host games. Ask the other player to host instead.")
         val ready = CompletableDeferred<MatchLink>()
-        var server: BluetoothGattServer? = null
-        var guest: BluetoothDevice? = null
-        var link: PacketLink? = null
-        var packetSize = DEFAULT_PACKET
-        var notifySent: CompletableDeferred<Boolean>? = null
+        val h = HostConnection()
         val toGuest = BluetoothGattCharacteristic(
             TO_GUEST,
             BluetoothGattCharacteristic.PROPERTY_NOTIFY,
@@ -126,37 +156,55 @@ private class AndroidBluetoothGames(private val context: Context) : BluetoothGam
 
         val callback = object : BluetoothGattServerCallback() {
             override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
-                if (newState == BluetoothProfile.STATE_DISCONNECTED && device == guest) {
-                    link?.disconnected()
-                    notifySent?.complete(false)
+                when (newState) {
+                    BluetoothProfile.STATE_CONNECTED -> {
+                        h.connected += device
+                        // Only one other phone can play; turn away any that connect after the guest.
+                        val guest = h.guest
+                        if (guest != null && device != guest) runCatching { h.server?.cancelConnection(device) }
+                    }
+                    BluetoothProfile.STATE_DISCONNECTED -> {
+                        h.connected -= device
+                        if (device == h.guest) {
+                            h.link?.disconnected()
+                            h.notifySent?.complete(false)
+                        }
+                    }
                 }
             }
 
             override fun onMtuChanged(device: BluetoothDevice, mtu: Int) {
-                if (device == guest || guest == null) packetSize = (mtu - 3).coerceAtLeast(DEFAULT_PACKET)
+                val guest = h.guest
+                if (device == guest || guest == null) h.packetSize = (mtu - 3).coerceAtLeast(DEFAULT_PACKET)
             }
 
             override fun onDescriptorWriteRequest(
                 device: BluetoothDevice, requestId: Int, descriptor: BluetoothGattDescriptor,
                 preparedWrite: Boolean, responseNeeded: Boolean, offset: Int, value: ByteArray?,
             ) {
-                val accept = guest == null || device == guest
-                if (responseNeeded) {
-                    server?.sendResponse(device, requestId, if (accept) BluetoothGatt.GATT_SUCCESS else BluetoothGatt.GATT_FAILURE, 0, null)
+                synchronized(h) {
+                    val accept = h.guest == null || device == h.guest
+                    if (responseNeeded) {
+                        h.server?.sendResponse(device, requestId, if (accept) BluetoothGatt.GATT_SUCCESS else BluetoothGatt.GATT_FAILURE, 0, null)
+                    }
+                    if (!accept || descriptor.uuid != CLIENT_CONFIG || h.guest != null) return
+                    // The first phone to subscribe becomes the guest.
+                    h.guest = device
                 }
-                if (!accept || descriptor.uuid != CLIENT_CONFIG || guest != null) return
-                // The first phone to subscribe becomes the guest.
-                guest = device
                 stopAdvertising()
+                // Turn away any other phone that connected while the game was being advertised.
+                synchronized(h.connected) { h.connected.filter { it != device } }.forEach {
+                    runCatching { h.server?.cancelConnection(it) }
+                }
                 val newLink = PacketLink(
-                    packetSize = { packetSize },
+                    packetSize = { h.packetSize },
                     sendPacket = { packet -> sendNotification(device, packet) },
                     onClose = {
-                        runCatching { server?.cancelConnection(device) }
-                        runCatching { server?.close() }
+                        runCatching { h.server?.cancelConnection(device) }
+                        runCatching { h.server?.close() }
                     },
                 )
-                link = newLink
+                h.link = newLink
                 ready.complete(newLink)
             }
 
@@ -164,22 +212,23 @@ private class AndroidBluetoothGames(private val context: Context) : BluetoothGam
                 device: BluetoothDevice, requestId: Int, characteristic: BluetoothGattCharacteristic,
                 preparedWrite: Boolean, responseNeeded: Boolean, offset: Int, value: ByteArray?,
             ) {
-                val ok = device == guest && characteristic.uuid == TO_HOST
+                // Long (prepared) writes aren't supported: the guest sizes its packets to fit one write.
+                val ok = device == h.guest && characteristic.uuid == TO_HOST && !preparedWrite
                 if (responseNeeded) {
-                    server?.sendResponse(device, requestId, if (ok) BluetoothGatt.GATT_SUCCESS else BluetoothGatt.GATT_FAILURE, 0, null)
+                    h.server?.sendResponse(device, requestId, if (ok) BluetoothGatt.GATT_SUCCESS else BluetoothGatt.GATT_FAILURE, 0, null)
                 }
-                if (ok && value != null) link?.received(value)
+                if (ok && value != null) h.link?.received(value)
             }
 
             override fun onNotificationSent(device: BluetoothDevice, status: Int) {
-                notifySent?.complete(status == BluetoothGatt.GATT_SUCCESS)
+                h.notifySent?.complete(status == BluetoothGatt.GATT_SUCCESS)
             }
 
             @Suppress("DEPRECATION")
             suspend fun sendNotification(device: BluetoothDevice, packet: ByteArray) {
                 val sent = CompletableDeferred<Boolean>()
-                notifySent = sent
-                val s = server ?: error("Not connected")
+                h.notifySent = sent
+                val s = h.server ?: error("Not connected")
                 val started = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     s.notifyCharacteristicChanged(device, toGuest, false, packet) == BluetoothStatusCodes.SUCCESS
                 } else {
@@ -191,7 +240,7 @@ private class AndroidBluetoothGames(private val context: Context) : BluetoothGam
         }
 
         val gattServer = manager!!.openGattServer(context, callback) ?: error("Couldn't start hosting.")
-        server = gattServer
+        h.server = gattServer
         val service = BluetoothGattService(SERVICE, BluetoothGattService.SERVICE_TYPE_PRIMARY).apply {
             addCharacteristic(toGuest)
             addCharacteristic(toHost)
@@ -221,6 +270,9 @@ private class AndroidBluetoothGames(private val context: Context) : BluetoothGam
 
     override fun scan(): Flow<List<FoundHost>> = callbackFlow {
         problem()?.let { error(it) }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S && !locationEnabled()) {
+            error("Turn on Location to look for games. This version of Android needs it to find Bluetooth devices.")
+        }
         val scanner = adapter!!.bluetoothLeScanner ?: error("Turn on Bluetooth to play on two phones.")
         val found = linkedMapOf<String, FoundHost>()
         val callback = object : ScanCallback() {
@@ -250,11 +302,7 @@ private class AndroidBluetoothGames(private val context: Context) : BluetoothGam
         problem()?.let { error(it) }
         val device = adapter!!.getRemoteDevice(host.id)
         val ready = CompletableDeferred<Unit>()
-        var gatt: BluetoothGatt? = null
-        var link: PacketLink? = null
-        var toHost: BluetoothGattCharacteristic? = null
-        var packetSize = DEFAULT_PACKET
-        var writeDone: CompletableDeferred<Boolean>? = null
+        val c = GuestConnection()
 
         val callback = object : BluetoothGattCallback() {
             override fun onConnectionStateChange(g: BluetoothGatt, status: Int, newState: Int) {
@@ -262,15 +310,15 @@ private class AndroidBluetoothGames(private val context: Context) : BluetoothGam
                     BluetoothProfile.STATE_CONNECTED -> if (!g.requestMtu(WANTED_MTU)) g.discoverServices()
                     BluetoothProfile.STATE_DISCONNECTED -> {
                         ready.completeExceptionally(IllegalStateException("Couldn't connect to ${host.name}."))
-                        link?.disconnected()
-                        writeDone?.complete(false)
+                        c.link?.disconnected()
+                        c.writeDone?.complete(false)
                         g.close()
                     }
                 }
             }
 
             override fun onMtuChanged(g: BluetoothGatt, mtu: Int, status: Int) {
-                if (status == BluetoothGatt.GATT_SUCCESS) packetSize = (mtu - 3).coerceAtLeast(DEFAULT_PACKET)
+                if (status == BluetoothGatt.GATT_SUCCESS) c.packetSize = (mtu - 3).coerceAtLeast(DEFAULT_PACKET)
                 g.discoverServices()
             }
 
@@ -278,7 +326,8 @@ private class AndroidBluetoothGames(private val context: Context) : BluetoothGam
             override fun onServicesDiscovered(g: BluetoothGatt, status: Int) {
                 val service = g.getService(SERVICE)
                 val notify = service?.getCharacteristic(TO_GUEST)
-                toHost = service?.getCharacteristic(TO_HOST)
+                val toHost = service?.getCharacteristic(TO_HOST)
+                c.toHost = toHost
                 val config = notify?.getDescriptor(CLIENT_CONFIG)
                 if (notify == null || toHost == null || config == null) {
                     ready.completeExceptionally(IllegalStateException("${host.name} isn't hosting a game."))
@@ -303,47 +352,47 @@ private class AndroidBluetoothGames(private val context: Context) : BluetoothGam
             }
 
             override fun onCharacteristicChanged(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic, value: ByteArray) {
-                if (characteristic.uuid == TO_GUEST) link?.received(value)
+                if (characteristic.uuid == TO_GUEST) c.link?.received(value)
             }
 
             @Deprecated("Used before Android 13")
             @Suppress("DEPRECATION")
             override fun onCharacteristicChanged(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
-                if (characteristic.uuid == TO_GUEST) characteristic.value?.let { link?.received(it) }
+                if (characteristic.uuid == TO_GUEST) characteristic.value?.let { c.link?.received(it) }
             }
 
             override fun onCharacteristicWrite(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
-                writeDone?.complete(status == BluetoothGatt.GATT_SUCCESS)
+                c.writeDone?.complete(status == BluetoothGatt.GATT_SUCCESS)
             }
         }
 
         @Suppress("DEPRECATION")
         suspend fun write(packet: ByteArray) {
-            val g = gatt ?: error("Not connected")
-            val c = toHost ?: error("Not connected")
+            val g = c.gatt ?: error("Not connected")
+            val toHost = c.toHost ?: error("Not connected")
             val done = CompletableDeferred<Boolean>()
-            writeDone = done
+            c.writeDone = done
             val started = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                g.writeCharacteristic(c, packet, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT) == BluetoothStatusCodes.SUCCESS
+                g.writeCharacteristic(toHost, packet, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT) == BluetoothStatusCodes.SUCCESS
             } else {
-                c.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-                c.value = packet
-                g.writeCharacteristic(c)
+                toHost.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                toHost.value = packet
+                g.writeCharacteristic(toHost)
             }
             if (!started || !withTimeout(PACKET_TIMEOUT_MS) { done.await() }) error("The connection was lost")
         }
 
         // Create the link before connecting so no early notification is lost.
         val newLink = PacketLink(
-            packetSize = { packetSize },
+            packetSize = { c.packetSize },
             sendPacket = { write(it) },
             onClose = {
-                runCatching { gatt?.disconnect() }
-                runCatching { gatt?.close() }
+                runCatching { c.gatt?.disconnect() }
+                runCatching { c.gatt?.close() }
             },
         )
-        link = newLink
-        gatt = device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
+        c.link = newLink
+        c.gatt = device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
         try {
             withTimeout(CONNECT_TIMEOUT_MS) { ready.await() }
         } catch (e: Throwable) {

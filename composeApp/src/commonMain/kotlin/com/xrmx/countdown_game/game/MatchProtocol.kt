@@ -176,15 +176,32 @@ object PacketFraming {
     /** Collects packets for one direction of a link. */
     class Joiner {
         private var buffer = ByteArray(0)
+        private var overflowed = false
 
-        /** Adds a packet and returns the message if it was the last one. */
+        /**
+         * Adds a packet and returns the message if it was the last one. A message longer than
+         * [MAX_MESSAGE_BYTES] is dropped, so the other phone can't make this one run out of memory.
+         */
         fun add(packet: ByteArray): String? {
             if (packet.isEmpty()) return null
-            buffer += packet.copyOfRange(1, packet.size)
+            if (!overflowed) {
+                buffer += packet.copyOfRange(1, packet.size)
+                if (buffer.size > MAX_MESSAGE_BYTES) {
+                    buffer = ByteArray(0)
+                    overflowed = true
+                }
+            }
             if (packet[0] == MORE) return null
+            if (overflowed) {
+                overflowed = false
+                return null
+            }
             val message = buffer.decodeToString()
             buffer = ByteArray(0)
             return message
         }
     }
+
+    /** Far more than any real message, which is a few hundred bytes. */
+    const val MAX_MESSAGE_BYTES = 16_384
 }

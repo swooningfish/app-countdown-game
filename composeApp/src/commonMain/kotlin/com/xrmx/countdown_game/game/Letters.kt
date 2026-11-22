@@ -24,6 +24,17 @@ object LetterRules {
     fun canPickConsonant(letters: String, enforce: Boolean): Boolean =
         letters.length < TOTAL && (!enforce || consonantCount(letters) < MAX_CONSONANTS)
 
+    /**
+     * Whether tile [index] of [letters] is still free to use in [word]. With repeated letters the
+     * earliest tiles are counted as used first.
+     */
+    fun isTileFree(word: String, letters: String, index: Int): Boolean {
+        val ch = letters.getOrNull(index) ?: return false
+        val used = word.count { it.equals(ch, ignoreCase = true) }
+        val earlierSame = letters.take(index).count { it.equals(ch, ignoreCase = true) }
+        return earlierSame >= used
+    }
+
     /** Returns a problem description for a hand-typed selection, or null if it is valid. */
     fun validateSelection(letters: String, enforce: Boolean): String? {
         if (letters.length != TOTAL) return "Enter exactly $TOTAL letters"

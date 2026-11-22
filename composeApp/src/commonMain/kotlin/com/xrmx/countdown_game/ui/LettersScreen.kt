@@ -76,6 +76,7 @@ fun LettersScreen(
                 letters = game.letters,
                 slots = LetterRules.TOTAL,
                 onTileClick = if (game.phase == Phase.Playing) game::appendFromTile else null,
+                isTileEnabled = { game.phase != Phase.Playing || LetterRules.isTileFree(game.guess, game.letters, it) },
             )
             if (game.phase == Phase.Picking) {
                 PickLettersControls(game, settings, onType = { showTypeDialog = true })

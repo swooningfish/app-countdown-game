@@ -81,6 +81,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.time.TimeMark
@@ -197,6 +198,12 @@ class TwoPlayerState(
     private fun cancelJob() {
         job?.cancel()
         job = null
+    }
+
+    /** Ends any game and stops all background work. Call when the app is closing. */
+    fun dispose() {
+        leave()
+        scope.cancel()
     }
 }
 
@@ -570,6 +577,7 @@ private fun PlayingView(s: MatchState, me: Int, session: MatchSession, state: Tw
                         val ch = letters[i]
                         if (state.input.count { it == ch } < letters.count { it == ch } && state.input.length < LetterRules.TOTAL) state.input += ch
                     } else null,
+                    isTileEnabled = { !canAnswer || LetterRules.isTileFree(state.input, letters, it) },
                 )
             }
         }

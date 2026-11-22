@@ -1,5 +1,6 @@
 package com.xrmx.countdown_game.ui
 
+import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -207,6 +208,12 @@ fun SettingsScreen(
                 }
                 TextButton(onClick = session::reset) { Text("Reset") }
             }
+            session.average?.let { avg ->
+                DetailRow("Average", "${(avg * 10).roundToInt() / 10.0} points a round")
+            }
+            if (session.bestWord.isNotEmpty()) DetailRow("Best word", "${session.bestWord} (${session.bestWord.length} letters)")
+            DetailRow("Spot on", "${session.numbersSpotOn} numbers rounds")
+            DetailRow("Conundrums", "${session.conundrumsSolved} solved")
         }
 
         SectionCard(title = "About") {

@@ -273,7 +273,7 @@ class MatchSession private constructor(
 
         private const val ID_CHARS = "abcdefghijkmnpqrstuvwxyz23456789"
 
-        fun newMatchId(random: kotlin.random.Random): String = String(CharArray(10) { ID_CHARS[random.nextInt(ID_CHARS.length)] })
+        fun newMatchId(random: kotlin.random.Random): String = CharArray(10) { ID_CHARS[random.nextInt(ID_CHARS.length)] }.concatToString()
 
         fun host(
             link: MatchLink,
